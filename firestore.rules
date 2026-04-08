@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "reddevil.abualror91@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.role == 'user';
+      allow update: if isAdmin();
+    }
+    
+    match /doctors/{doctorId} {
+      // Anyone can read approved doctors. Admins can read all. Users can read their own pending submissions.
+      allow read: if resource.data.status == 'approved' || isAdmin() || (isAuthenticated() && resource.data.addedBy == request.auth.uid);
+      
+      // Authenticated users can create pending doctors.
+      allow create: if isAuthenticated() && 
+                    request.resource.data.status == 'pending' &&
+                    request.resource.data.addedBy == request.auth.uid &&
+                    request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100 &&
+                    request.resource.data.specialty is string && request.resource.data.specialty.size() > 0 && request.resource.data.specialty.size() < 100 &&
+                    request.resource.data.address is string && request.resource.data.address.size() > 0 && request.resource.data.address.size() < 200 &&
+                    request.resource.data.phone is string && request.resource.data.phone.size() > 0 && request.resource.data.phone.size() < 20 &&
+                    (!('lat' in request.resource.data) || request.resource.data.lat is number) &&
+                    (!('lng' in request.resource.data) || request.resource.data.lng is number);
+                    
+      // Admins can update status. Users can update their own pending submissions.
+      allow update: if isAdmin() || 
+                    (isAuthenticated() && resource.data.addedBy == request.auth.uid && resource.data.status == 'pending' && request.resource.data.status == 'pending' && request.resource.data.addedBy == request.auth.uid);
+                    
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.addedBy == request.auth.uid && resource.data.status == 'pending');
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Doctor": {
+      "title": "Doctor",
+      "description": "A doctor listed in the directory",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the doctor" },
+        "specialty": { "type": "string", "description": "Medical specialty" },
+        "address": { "type": "string", "description": "Clinic or hospital address" },
+        "phone": { "type": "string", "description": "Booking phone number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Approval status" },
+        "addedBy": { "type": "string", "description": "UID of the user who added this doctor" },
+        "createdAt": { "type": "timestamp", "description": "When the record was created" }
+      },
+      "required": ["name", "specialty", "address", "phone", "status", "addedBy", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["name", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/doctors/{doctorId}": {
+      "schema": { "$ref": "#/entities/Doctor" },
+      "description": "Collection of doctors"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Collection of users"
+    }
+  }
+}
