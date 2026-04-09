@@ -3,18 +3,28 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/firebase';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
-import { Doctor, updateDoctorStatus, deleteDoctor, checkIsAdmin } from '@/lib/firebase-utils';
+import { collection, query, onSnapshot, orderBy, writeBatch, doc } from 'firebase/firestore';
+import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
 import { onAuthStateChanged } from 'firebase/auth';
-import Navbar from '@/components/Navbar';
-import { motion } from 'motion/react';
-import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { normalizeSpecialty, STANDARD_SPECIALTIES } from '@/lib/specialties';
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [bulkText, setBulkText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  
+  // New states for bulk delete and edit
+  const [selectedDoctors, setSelectedDoctors] = useState<Set<string>>(new Set());
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', specialty: '', phone: '', address: '' });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -53,6 +63,9 @@ export default function AdminDashboard() {
       
       setDoctors(docsData);
       setLoading(false);
+    }, (error: any) => {
+      handleFirestoreError(error, OperationType.LIST, 'doctors');
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -81,24 +94,172 @@ export default function AdminDashboard() {
   ];
 
   const handleApprove = async (id: string) => {
-    await updateDoctorStatus(id, 'approved');
+    try {
+      await updateDoctorStatus(id, 'approved');
+    } catch (error: any) {
+      console.error("Error approving doctor:", error?.message || String(error));
+      alert("حدث خطأ أثناء قبول الطبيب.");
+      throw error;
+    }
   };
 
   const handleReject = async (id: string) => {
-    await updateDoctorStatus(id, 'rejected');
+    try {
+      await updateDoctorStatus(id, 'rejected');
+    } catch (error: any) {
+      console.error("Error rejecting doctor:", error?.message || String(error));
+      alert("حدث خطأ أثناء رفض الطبيب.");
+      throw error;
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (confirm('هل أنت متأكد من حذف هذا الطبيب نهائياً؟')) {
-      await deleteDoctor(id);
+      try {
+        await deleteDoctor(id);
+        setSelectedDoctors(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+      } catch (error: any) {
+        console.error("Error deleting doctor:", error?.message || String(error));
+        alert("حدث خطأ أثناء حذف الطبيب.");
+        throw error;
+      }
+    }
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedDoctors(new Set(doctors.map(d => d.id!)));
+    } else {
+      setSelectedDoctors(new Set());
+    }
+  };
+
+  const handleSelect = (id: string) => {
+    setSelectedDoctors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedDoctors.size === 0) return;
+    if (!confirm(`هل أنت متأكد من حذف ${selectedDoctors.size} طبيب نهائياً؟`)) return;
+
+    setIsDeletingBulk(true);
+    try {
+      const batch = writeBatch(db);
+      selectedDoctors.forEach(id => {
+        batch.delete(doc(db, 'doctors', id));
+      });
+      await batch.commit();
+      setSelectedDoctors(new Set());
+      alert('تم حذف الأطباء المحددين بنجاح.');
+    } catch (error: any) {
+      console.error("Error bulk deleting doctors:", error);
+      alert("حدث خطأ أثناء الحذف المتعدد.");
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
+  const openEditModal = (doctor: Doctor) => {
+    setEditingDoctor(doctor);
+    setEditForm({
+      name: doctor.name,
+      specialty: doctor.specialty,
+      phone: doctor.phone,
+      address: doctor.address
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoctor?.id) return;
+    
+    setIsSavingEdit(true);
+    try {
+      await updateDoctorDetails(editingDoctor.id, editForm);
+      setEditingDoctor(null);
+      alert('تم تحديث بيانات الطبيب بنجاح.');
+    } catch (error: any) {
+      console.error("Error updating doctor:", error);
+      alert("حدث خطأ أثناء تحديث بيانات الطبيب.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleBulkImport = async () => {
+    if (!bulkText.trim()) return;
+    if (!auth.currentUser) return;
+    
+    setIsImporting(true);
+    try {
+      const lines = bulkText.split('\n').filter(line => line.trim() !== '');
+      const batch = writeBatch(db);
+      let count = 0;
+
+      lines.forEach(line => {
+        // Find phone number (11 digits starting with 07)
+        const phoneMatch = line.match(/07\d{9}/);
+        if (!phoneMatch) return;
+        
+        const phone = phoneMatch[0];
+        
+        // Remove phone and garbage text
+        let rest = line.replace(phone, '').trim();
+        rest = rest.replace('للفائدة ارقام حجز عيادة الاطباء سامراء', '').trim();
+        
+        // Split by '/' or '،،' or '-'
+        const parts = rest.split(/[/،-]/);
+        if (parts.length === 0) return;
+        
+        const name = parts[0].trim() || 'غير معروف';
+        const rawSpecialty = parts.length > 1 ? parts[1].trim() : 'عام';
+        const specialty = normalizeSpecialty(rawSpecialty);
+        
+        if (name.length > 0) {
+          const docRef = doc(collection(db, 'doctors'));
+          batch.set(docRef, {
+            name,
+            specialty,
+            phone,
+            address: 'سامراء',
+            status: 'approved',
+            addedBy: auth.currentUser!.uid,
+            createdAt: new Date()
+          });
+          count++;
+        }
+      });
+
+      if (count > 0) {
+        await batch.commit();
+        alert(`تم استيراد ${count} طبيب بنجاح!`);
+        setBulkText('');
+      } else {
+        alert('لم يتم العثور على أطباء بصيغة صحيحة.');
+      }
+    } catch (error: any) {
+      console.error("Error importing doctors:", error);
+      alert("حدث خطأ أثناء الاستيراد.");
+    } finally {
+      setIsImporting(false);
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-dark-950">
-      <Navbar />
-      
-      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full pb-24 md:pb-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">لوحة تحكم الإدارة</h1>
           <p className="text-gray-400">إدارة الأطباء ومراجعة الطلبات الجديدة</p>
@@ -139,17 +300,74 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Bulk Import Section */}
+        <div className="glass-panel rounded-2xl p-6 mb-8 border border-gold-500/20">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center">
+              <Upload className="text-gold-500" size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">استيراد الأطباء دفعة واحدة</h2>
+              <p className="text-sm text-gray-400">قم بلصق القائمة النصية هنا ليتم إضافتهم تلقائياً</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <textarea
+              value={bulkText}
+              onChange={(e) => setBulkText(e.target.value)}
+              placeholder="مثال:&#10;07705779806 عبد توفيق/عيون&#10;07735901388 ابتسام محيي /نسائية"
+              className="w-full h-32 bg-dark-900 border border-white/10 rounded-xl p-4 text-gray-300 text-sm focus:outline-none focus:border-gold-500/50 custom-scrollbar"
+              dir="rtl"
+            />
+            <button
+              onClick={handleBulkImport}
+              disabled={isImporting || !bulkText.trim()}
+              className="px-6 py-3 bg-gradient-gold text-black font-bold rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isImporting ? (
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <FileText size={18} />
+              )}
+              <span>بدء الاستيراد</span>
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Table */}
           <div className="lg:col-span-2 glass-panel rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-xl font-bold text-white">إدارة الطلبات</h2>
+              
+              {selectedDoctors.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isDeletingBulk}
+                  className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                  {isDeletingBulk ? (
+                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Trash2 size={16} />
+                  )}
+                  حذف المحدد ({selectedDoctors.size})
+                </button>
+              )}
             </div>
             
             <div className="overflow-x-auto">
               <table className="w-full text-right">
                 <thead className="bg-dark-800/50 text-gray-400 text-sm">
                   <tr>
+                    <th className="px-6 py-4 font-medium w-12">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-600 bg-dark-900 text-gold-500 focus:ring-gold-500/50"
+                        checked={doctors.length > 0 && selectedDoctors.size === doctors.length}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
                     <th className="px-6 py-4 font-medium">اسم الطبيب</th>
                     <th className="px-6 py-4 font-medium">التخصص</th>
                     <th className="px-6 py-4 font-medium">الحالة</th>
@@ -159,13 +377,21 @@ export default function AdminDashboard() {
                 <tbody className="divide-y divide-white/5">
                   {doctors.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                         لا يوجد أطباء في قاعدة البيانات
                       </td>
                     </tr>
                   ) : (
                     doctors.map((doctor) => (
-                      <tr key={doctor.id} className="hover:bg-white/[0.02] transition-colors">
+                      <tr key={doctor.id} className={`hover:bg-white/[0.02] transition-colors ${selectedDoctors.has(doctor.id!) ? 'bg-gold-500/5' : ''}`}>
+                        <td className="px-6 py-4">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-600 bg-dark-900 text-gold-500 focus:ring-gold-500/50"
+                            checked={selectedDoctors.has(doctor.id!)}
+                            onChange={() => handleSelect(doctor.id!)}
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-gray-200">{doctor.name}</div>
                           <div className="text-xs text-gray-500">{doctor.phone}</div>
@@ -182,6 +408,13 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
+                            <button 
+                              onClick={() => openEditModal(doctor)}
+                              className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
+                              title="تعديل"
+                            >
+                              <Edit size={18} />
+                            </button>
                             {doctor.status !== 'approved' && (
                               <button 
                                 onClick={() => handleApprove(doctor.id!)}
@@ -255,6 +488,109 @@ export default function AdminDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingDoctor && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEditingDoctor(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-dark-900 border border-gold-500/20 rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">تعديل بيانات الطبيب</h2>
+                <button 
+                  onClick={() => setEditingDoctor(null)}
+                  className="p-2 rounded-full bg-dark-800/50 text-gray-400 hover:text-white hover:bg-dark-800 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">اسم الطبيب</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">التخصص</label>
+                  <select
+                    required
+                    value={editForm.specialty}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, specialty: e.target.value }))}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 appearance-none"
+                  >
+                    {STANDARD_SPECIALTIES.map(spec => (
+                      <option key={spec} value={spec}>{spec}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">رقم الهاتف</label>
+                  <input
+                    type="tel"
+                    required
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 text-right"
+                    dir="ltr"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">العنوان</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.address}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50"
+                  />
+                </div>
+
+                <div className="pt-4 flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit}
+                    className="flex-1 bg-gradient-gold text-black font-bold py-3 rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 flex items-center justify-center"
+                  >
+                    {isSavingEdit ? (
+                      <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      'حفظ التعديلات'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDoctor(null)}
+                    className="px-6 py-3 bg-dark-800 text-white font-medium rounded-xl hover:bg-dark-700 transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

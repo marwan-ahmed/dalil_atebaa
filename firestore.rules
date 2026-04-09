@@ -43,5 +43,16 @@ service cloud.firestore {
                     
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.addedBy == request.auth.uid && resource.data.status == 'pending');
     }
+
+    match /reviews/{reviewId} {
+      allow read: true;
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.doctorId is string &&
+                    request.resource.data.userName is string && request.resource.data.userName.size() > 0 && request.resource.data.userName.size() < 100 &&
+                    request.resource.data.rating is number && request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+                    request.resource.data.comment is string && request.resource.data.comment.size() <= 1000;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
   }
 }

@@ -2,15 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { auth, signInWithPopup, googleProvider, signOut, isConfigValid } from '@/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { checkIsAdmin } from '@/lib/firebase-utils';
-import { LogIn, LogOut, Shield, User as UserIcon, PlusCircle } from 'lucide-react';
+import { LogIn, LogOut, Shield, User as UserIcon, PlusCircle, Home, Search } from 'lucide-react';
 import { motion } from 'motion/react';
+import AddDoctorModal from './AddDoctorModal';
 
-export default function Navbar({ onAddClick }: { onAddClick?: () => void }) {
+export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -26,11 +30,6 @@ export default function Navbar({ onAddClick }: { onAddClick?: () => void }) {
   }, []);
 
   const handleLogin = async () => {
-    if (!isConfigValid) {
-      alert("إعدادات Firebase غير مكتملة. يرجى إضافة الإعدادات الصحيحة لتتمكن من تسجيل الدخول.");
-      return;
-    }
-    
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
@@ -47,7 +46,17 @@ export default function Navbar({ onAddClick }: { onAddClick?: () => void }) {
     }
   };
 
+  const handleAddClick = () => {
+    if (user) {
+      setIsAddModalOpen(true);
+    } else {
+      alert("يرجى تسجيل الدخول أولاً لتتمكن من إضافة طبيب.");
+      handleLogin();
+    }
+  };
+
   return (
+    <>
     <nav className="sticky top-0 z-50 glass-panel border-b border-gold-500/20 px-6 py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link href="/">
@@ -59,51 +68,47 @@ export default function Navbar({ onAddClick }: { onAddClick?: () => void }) {
             <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-black font-bold text-xl">
               د
             </div>
-            <span className="text-2xl font-bold text-gradient-gold tracking-wide">دليل الأطباء</span>
+            <span className="text-2xl font-bold text-gradient-gold tracking-wide">دليل أطباء سامراء</span>
           </motion.div>
         </Link>
 
         <div className="flex items-center gap-4">
+          <button 
+            onClick={handleAddClick}
+            className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-gold-500/50 text-gold-400 hover:bg-gold-500/10 transition-colors"
+          >
+            <PlusCircle size={18} />
+            <span>إضافة طبيب</span>
+          </button>
+          
+          {isAdmin && (
+            <Link href="/admin" className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-dark-800 border border-gold-500/30 text-gray-200 hover:border-gold-500 transition-colors">
+              <Shield size={18} className="text-gold-500" />
+              <span>لوحة الإدارة</span>
+            </Link>
+          )}
+          
           {user ? (
-            <>
-              {onAddClick && (
-                <button 
-                  onClick={onAddClick}
-                  className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-gold-500/50 text-gold-400 hover:bg-gold-500/10 transition-colors"
-                >
-                  <PlusCircle size={18} />
-                  <span>إضافة طبيب</span>
-                </button>
-              )}
-              
-              {isAdmin && (
-                <Link href="/admin" className="flex items-center gap-2 px-4 py-2 rounded-full bg-dark-800 border border-gold-500/30 text-gray-200 hover:border-gold-500 transition-colors">
-                  <Shield size={18} className="text-gold-500" />
-                  <span className="hidden md:inline">لوحة الإدارة</span>
-                </Link>
-              )}
-              
-              <div className="flex items-center gap-3 pl-4 border-l border-white/10">
-                <div className="flex flex-col items-end hidden md:flex">
-                  <span className="text-sm font-medium text-gray-200">{user.displayName}</span>
-                  <span className="text-xs text-gray-500">{isAdmin ? 'مدير النظام' : 'مستخدم'}</span>
-                </div>
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border border-gold-500/50" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-dark-800 border border-gold-500/50 flex items-center justify-center">
-                    <UserIcon size={20} className="text-gold-500" />
-                  </div>
-                )}
-                <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-colors" title="تسجيل الخروج">
-                  <LogOut size={20} />
-                </button>
+            <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+              <div className="flex flex-col items-end hidden md:flex">
+                <span className="text-sm font-medium text-gray-200">{user.displayName}</span>
+                <span className="text-xs text-gray-500">{isAdmin ? 'مدير النظام' : 'مستخدم'}</span>
               </div>
-            </>
+              {user.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="w-10 h-10 rounded-full border border-gold-500/50" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-dark-800 border border-gold-500/50 flex items-center justify-center">
+                  <UserIcon size={20} className="text-gold-500" />
+                </div>
+              )}
+              <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-400 transition-colors" title="تسجيل الخروج">
+                <LogOut size={20} />
+              </button>
+            </div>
           ) : (
             <button 
               onClick={handleLogin}
-              className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-gold text-black font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
+              className="hidden md:flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-gold text-black font-bold hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all"
             >
               <LogIn size={18} />
               <span>تسجيل الدخول</span>
@@ -112,5 +117,50 @@ export default function Navbar({ onAddClick }: { onAddClick?: () => void }) {
         </div>
       </div>
     </nav>
+    
+    {/* Bottom Navigation for Mobile */}
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel border-t border-gold-500/20 pb-safe">
+      <div className="flex items-center justify-around p-3">
+        <Link href="/" className={`flex flex-col items-center gap-1 ${pathname === '/' ? 'text-gold-400' : 'text-gray-500'}`}>
+          <Home size={24} />
+          <span className="text-[10px] font-medium">الرئيسية</span>
+        </Link>
+        
+        <Link href="/directory" className={`flex flex-col items-center gap-1 ${pathname === '/directory' ? 'text-gold-400' : 'text-gray-500'}`}>
+          <Search size={24} />
+          <span className="text-[10px] font-medium">الدليل</span>
+        </Link>
+        
+        <button onClick={handleAddClick} className="flex flex-col items-center gap-1 text-gray-500 hover:text-gold-400">
+          <PlusCircle size={24} />
+          <span className="text-[10px] font-medium">إضافة</span>
+        </button>
+
+        {isAdmin && (
+          <Link href="/admin" className={`flex flex-col items-center gap-1 ${pathname === '/admin' ? 'text-gold-400' : 'text-gray-500'}`}>
+            <Shield size={24} />
+            <span className="text-[10px] font-medium">الإدارة</span>
+          </Link>
+        )}
+        
+        {!user ? (
+          <button onClick={handleLogin} className="flex flex-col items-center gap-1 text-gray-500 hover:text-gold-400">
+            <LogIn size={24} />
+            <span className="text-[10px] font-medium">دخول</span>
+          </button>
+        ) : (
+          <button onClick={handleLogout} className="flex flex-col items-center gap-1 text-gray-500 hover:text-red-400">
+            <LogOut size={24} />
+            <span className="text-[10px] font-medium">خروج</span>
+          </button>
+        )}
+      </div>
+    </div>
+
+    <AddDoctorModal 
+      isOpen={isAddModalOpen} 
+      onClose={() => setIsAddModalOpen(false)} 
+    />
+    </>
   );
 }

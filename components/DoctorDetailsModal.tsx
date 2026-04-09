@@ -1,8 +1,11 @@
 'use client';
 
-import { Doctor } from '@/lib/firebase-utils';
+import { useState, useEffect } from 'react';
+import { Doctor, Review, addReview, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
+import { auth, db } from '@/firebase';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star } from 'lucide-react';
+import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star, MessageSquare, Send } from 'lucide-react';
 
 interface DoctorDetailsModalProps {
   doctor: Doctor | null;
@@ -11,7 +14,70 @@ interface DoctorDetailsModalProps {
 }
 
 export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDetailsModalProps) {
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+
+  useEffect(() => {
+    if (!isOpen || !doctor?.id) return;
+
+    setLoadingReviews(true);
+    const q = query(
+      collection(db, 'reviews'),
+      where('doctorId', '==', doctor.id)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reviewsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Review[];
+      
+      reviewsData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+      
+      setReviews(reviewsData);
+      setLoadingReviews(false);
+    }, (error: any) => {
+      handleFirestoreError(error, OperationType.LIST, 'reviews');
+      setLoadingReviews(false);
+    });
+
+    return () => unsubscribe();
+  }, [isOpen, doctor?.id]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!doctor?.id || !auth.currentUser) return;
+    if (!newComment.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await addReview({
+        doctorId: doctor.id,
+        rating: newRating,
+        comment: newComment.trim()
+      });
+      setNewComment('');
+      setNewRating(5);
+    } catch (error) {
+      console.error("Error adding review", error);
+      alert("حدث خطأ أثناء إضافة التقييم.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (!isOpen || !doctor) return null;
+
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((acc, rev) => acc + rev.rating, 0) / reviews.length).toFixed(1)
+    : 'جديد';
 
   return (
     <AnimatePresence>
@@ -28,10 +94,10 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative w-full max-w-2xl bg-dark-900 border border-gold-500/20 rounded-3xl shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl bg-dark-900 border border-gold-500/20 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
         >
           {/* Header Pattern */}
-          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-gold-500/10 to-transparent opacity-50" />
+          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-gold-500/10 to-transparent opacity-50 pointer-events-none" />
           
           <button 
             onClick={onClose}
@@ -40,7 +106,7 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
             <X size={20} />
           </button>
 
-          <div className="p-8 relative z-10">
+          <div className="p-8 relative z-10 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
               <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-dark-800 to-dark-950 border border-gold-500/30 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(212,175,55,0.15)]">
                 <Stethoscope className="text-gold-400" size={40} />
@@ -54,7 +120,7 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
                     <Award size={12} className="text-gold-500" /> استشاري
                   </span>
                   <span className="px-3 py-1 rounded-full bg-dark-800 border border-white/5 text-xs text-gray-300 flex items-center gap-1">
-                    <Star size={12} className="text-gold-500" /> تقييم ممتاز
+                    <Star size={12} className="text-gold-500" /> {averageRating} {reviews.length > 0 && `(${reviews.length} تقييم)`}
                   </span>
                 </div>
               </div>
@@ -82,7 +148,7 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-gold-500/10 via-gold-500/5 to-transparent rounded-2xl p-6 border border-gold-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="bg-gradient-to-r from-gold-500/10 via-gold-500/5 to-transparent rounded-2xl p-6 border border-gold-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
               <div>
                 <h4 className="text-gold-400 font-bold mb-1 flex items-center gap-2">
                   <Calendar size={18} />
@@ -97,6 +163,82 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
                 <Phone size={18} />
                 اتصال
               </a>
+            </div>
+
+            {/* Reviews Section */}
+            <div className="border-t border-white/10 pt-8">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <MessageSquare size={20} className="text-gold-500" />
+                آراء المراجعين
+              </h3>
+
+              {auth.currentUser ? (
+                <form onSubmit={handleSubmitReview} className="mb-8 bg-dark-800/30 p-4 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-sm text-gray-400">تقييمك:</span>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setNewRating(star)}
+                          className={`p-1 transition-colors ${star <= newRating ? 'text-gold-500' : 'text-gray-600'}`}
+                        >
+                          <Star size={20} fill={star <= newRating ? 'currentColor' : 'none'} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="اكتب تجربتك مع الطبيب..."
+                      className="flex-1 bg-dark-900 border border-white/10 rounded-lg px-4 py-2 text-white text-sm focus:outline-none focus:border-gold-500/50"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !newComment.trim()}
+                      className="bg-gold-500/20 text-gold-400 px-4 py-2 rounded-lg hover:bg-gold-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {isSubmitting ? (
+                        <div className="w-5 h-5 border-2 border-gold-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Send size={18} />
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="mb-8 p-4 bg-dark-800/30 rounded-xl border border-white/5 text-center">
+                  <p className="text-sm text-gray-400">يرجى تسجيل الدخول لإضافة تقييم</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {loadingReviews ? (
+                  <div className="text-center py-4 text-gray-500">جاري تحميل التقييمات...</div>
+                ) : reviews.length > 0 ? (
+                  reviews.map((review) => (
+                    <div key={review.id} className="bg-dark-800/50 p-4 rounded-xl border border-white/5">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-200">{review.userName}</span>
+                        <div className="flex items-center gap-1 text-gold-500">
+                          <Star size={14} fill="currentColor" />
+                          <span className="text-xs font-bold">{review.rating}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-400">{review.comment}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    لا توجد تقييمات بعد. كن أول من يقيم هذا الطبيب!
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>

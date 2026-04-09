@@ -26,6 +26,20 @@
         "createdAt": { "type": "timestamp" }
       },
       "required": ["name", "email", "role", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A user review for a doctor",
+      "type": "object",
+      "properties": {
+        "doctorId": { "type": "string", "description": "ID of the doctor being reviewed" },
+        "userId": { "type": "string", "description": "UID of the user leaving the review" },
+        "userName": { "type": "string", "description": "Name of the user leaving the review" },
+        "rating": { "type": "number", "description": "Rating from 1 to 5" },
+        "comment": { "type": "string", "description": "Review comment text" },
+        "createdAt": { "type": "timestamp", "description": "When the review was created" }
+      },
+      "required": ["doctorId", "userId", "userName", "rating", "comment", "createdAt"]
     }
   },
   "firestore": {
@@ -36,6 +50,10 @@
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "Collection of users"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Collection of doctor reviews"
     }
   }
 }

@@ -5,6 +5,7 @@ import { addDoctor } from '@/lib/firebase-utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
 import LocationPickerWrapper from './LocationPickerWrapper';
+import { STANDARD_SPECIALTIES } from '@/lib/specialties';
 
 interface AddDoctorModalProps {
   isOpen: boolean;
@@ -14,7 +15,7 @@ interface AddDoctorModalProps {
 export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    specialty: '',
+    specialty: STANDARD_SPECIALTIES[0],
     address: '',
     phone: '',
     lat: undefined as number | undefined,
@@ -100,14 +101,16 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">التخصص</label>
-                  <input 
-                    type="text" 
+                  <select 
                     required
                     value={formData.specialty}
                     onChange={(e) => setFormData({...formData, specialty: e.target.value})}
-                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all"
-                    placeholder="استشاري أمراض القلب"
-                  />
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all appearance-none"
+                  >
+                    {STANDARD_SPECIALTIES.map(spec => (
+                      <option key={spec} value={spec}>{spec}</option>
+                    ))}
+                  </select>
                 </div>
                 
                 <div>
