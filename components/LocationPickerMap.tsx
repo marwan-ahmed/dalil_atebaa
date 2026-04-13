@@ -34,12 +34,12 @@ export default function LocationPickerMap({ onLocationSelect }: { onLocationSele
     onLocationSelect(latlng.lat, latlng.lng);
   };
 
-  // Default center (e.g., Riyadh)
-  const center: [number, number] = [24.7136, 46.6753];
+  // Default center (Samarra, Iraq)
+  const center: [number, number] = [34.1965, 43.8738];
 
   return (
     <div className="w-full h-[250px] rounded-xl overflow-hidden border border-white/10 relative z-0">
-      <MapContainer center={center} zoom={5} className="w-full h-full">
+      <MapContainer center={center} zoom={13} className="w-full h-full">
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'

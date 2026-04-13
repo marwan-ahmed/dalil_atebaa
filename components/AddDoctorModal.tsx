@@ -121,7 +121,7 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                     value={formData.address}
                     onChange={(e) => setFormData({...formData, address: e.target.value})}
                     className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all"
-                    placeholder="الرياض، شارع العليا"
+                    placeholder="سامراء، شارع الأطباء"
                   />
                 </div>
                 
@@ -130,10 +130,12 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                   <input 
                     type="tel" 
                     required
+                    pattern="^(077|078|079|075)\d{8}$"
+                    title="يجب أن يبدأ الرقم بـ 077 أو 078 أو 079 أو 075 ويتكون من 11 رقماً"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
                     className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all text-right"
-                    placeholder="0500000000"
+                    placeholder="07700000000"
                     dir="ltr"
                   />
                 </div>
