@@ -7,16 +7,18 @@ import { collection, query, onSnapshot, orderBy, writeBatch, doc } from 'firebas
 import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
 import { onAuthStateChanged } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { normalizeSpecialty, STANDARD_SPECIALTIES } from '@/lib/specialties';
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'doctors' | 'users'>('doctors');
   
   // New states for bulk delete and edit
   const [selectedDoctors, setSelectedDoctors] = useState<Set<string>>(new Set());
@@ -68,7 +70,29 @@ export default function AdminDashboard() {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Fetch Users
+    const uQuery = query(collection(db, 'users'));
+    const uUnsubscribe = onSnapshot(uQuery, (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      usersData.sort((a: any, b: any) => {
+        const timeA = a.lastLogin?.toMillis?.() || 0;
+        const timeB = b.lastLogin?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+      
+      setUsersList(usersData);
+    }, (error: any) => {
+      console.error("Error fetching users:", error);
+    });
+
+    return () => {
+      unsubscribe();
+      uUnsubscribe();
+    };
   }, [isAdmin]);
 
   if (isAdmin === null || loading) {
@@ -260,13 +284,40 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-dark-950">
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full pb-24 md:pb-6">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">لوحة تحكم الإدارة</h1>
-          <p className="text-gray-400">إدارة الأطباء ومراجعة الطلبات الجديدة</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">لوحة تحكم الإدارة</h1>
+            <p className="text-gray-400">إدارة الأطباء ومراجعة الطلبات الجديدة</p>
+          </div>
+          
+          <div className="flex bg-dark-800 p-1 rounded-xl border border-white/5">
+            <button
+              onClick={() => setActiveTab('doctors')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'doctors' 
+                  ? 'bg-dark-900 text-gold-400 shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              الأطباء
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'users' 
+                  ? 'bg-dark-900 text-gold-400 shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              المستخدمين
+            </button>
+          </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {activeTab === 'doctors' ? (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-blue-500">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-gray-400 font-medium">إجمالي الأطباء</h3>
@@ -486,7 +537,74 @@ export default function AdminDashboard() {
               </p>
             </div>
           </div>
-        </div>
+          </div>
+          </>
+        ) : (
+          <div className="glass-panel rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">سجل المستخدمين</h2>
+              <span className="text-sm text-gray-400">إجمالي المستخدمين: {usersList.length}</span>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead className="bg-dark-800/50 text-gray-400 text-sm">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">المستخدم</th>
+                    <th className="px-6 py-4 font-medium">البريد الإلكتروني</th>
+                    <th className="px-6 py-4 font-medium">تاريخ الميلاد</th>
+                    <th className="px-6 py-4 font-medium">عنوان IP</th>
+                    <th className="px-6 py-4 font-medium">المنطقة / الموقع</th>
+                    <th className="px-6 py-4 font-medium">آخر دخول</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {usersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        لا يوجد مستخدمين مسجلين
+                      </td>
+                    </tr>
+                  ) : (
+                    usersList.map((usr) => (
+                      <tr key={usr.id} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {usr.photoURL ? (
+                              <img src={usr.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gold-500/30" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-dark-800 border border-gold-500/30 flex items-center justify-center">
+                                <UserIcon size={14} className="text-gold-500" />
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-200">{usr.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-300 text-sm">{usr.email}</td>
+                        <td className="px-6 py-4 text-gray-500 text-xs italic">غير متوفر من جوجل</td>
+                        <td className="px-6 py-4 text-gray-300 text-sm font-mono">
+                          <div className="flex items-center gap-2">
+                            <MonitorSmartphone size={14} className="text-gray-500" />
+                            {usr.ip || 'غير معروف'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-300 text-sm">
+                          <div className="flex items-center gap-2">
+                            <MapPin size={14} className="text-gray-500" />
+                            {usr.location || 'غير معروف'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-gray-400 text-xs">
+                          {usr.lastLogin ? new Date(usr.lastLogin.toDate()).toLocaleString('ar-IQ') : 'غير معروف'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Edit Modal */}

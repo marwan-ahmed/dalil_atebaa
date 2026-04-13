@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { auth, signInWithPopup, googleProvider, signOut, isConfigValid } from '@/firebase';
+import { auth, signInWithPopup, googleProvider, signOut, isConfigValid, db } from '@/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { checkIsAdmin } from '@/lib/firebase-utils';
 import { LogIn, LogOut, Shield, User as UserIcon, PlusCircle, Home, Search } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -31,7 +32,37 @@ export default function Navbar() {
 
   const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const loggedUser = result.user;
+      
+      // Fetch IP and Location
+      let ipDetails = { ip: 'غير معروف', city: 'غير معروف', country: 'غير معروف' };
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        const data = await res.json();
+        if (data.ip) {
+          ipDetails = { ip: data.ip, city: data.city, country: data.country_name };
+        }
+      } catch (e) { 
+        console.error('IP fetch failed', e); 
+      }
+
+      // Save to Firestore
+      const userRef = doc(db, 'users', loggedUser.uid);
+      const userSnap = await getDoc(userRef);
+      
+      const userData = {
+        name: loggedUser.displayName || 'بدون اسم',
+        email: loggedUser.email || '',
+        photoURL: loggedUser.photoURL || '',
+        lastLogin: new Date(),
+        ip: ipDetails.ip,
+        location: ipDetails.city !== 'غير معروف' ? `${ipDetails.city}, ${ipDetails.country}` : 'غير معروف',
+        role: userSnap.exists() ? userSnap.data().role : 'user'
+      };
+      
+      await setDoc(userRef, userData, { merge: true });
+      
     } catch (error: any) {
       console.error("Login failed", error?.message || String(error));
       alert("فشل تسجيل الدخول. تأكد من صحة إعدادات Firebase.");
