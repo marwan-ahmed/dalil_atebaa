@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { normalizeSpecialty, STANDARD_SPECIALTIES } from '@/lib/specialties';
+import VideoPreviewModal from '@/components/VideoPreviewModal';
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -26,6 +27,10 @@ export default function AdminDashboard() {
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [editForm, setEditForm] = useState({ name: '', specialty: '', phone: '', address: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  
+  // Video Modal State
+  const [videoDoctor, setVideoDoctor] = useState<Doctor | null>(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   const router = useRouter();
 
@@ -260,6 +265,8 @@ export default function AdminDashboard() {
             address: 'سامراء',
             status: 'approved',
             addedBy: auth.currentUser!.uid,
+            addedByEmail: auth.currentUser!.email || 'غير معروف',
+            addedByName: auth.currentUser!.displayName || 'مدير النظام',
             createdAt: new Date()
           });
           count++;
@@ -421,6 +428,7 @@ export default function AdminDashboard() {
                     </th>
                     <th className="px-6 py-4 font-medium">اسم الطبيب</th>
                     <th className="px-6 py-4 font-medium">التخصص</th>
+                    <th className="px-6 py-4 font-medium">الإضافة بواسطة</th>
                     <th className="px-6 py-4 font-medium">الحالة</th>
                     <th className="px-6 py-4 font-medium text-center">الإجراءات</th>
                   </tr>
@@ -449,6 +457,15 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-6 py-4 text-gray-300">{doctor.specialty}</td>
                         <td className="px-6 py-4">
+                          <div className="text-sm text-gray-300">{doctor.addedByName || 'غير معروف'}</div>
+                          <div className="text-xs text-gray-500">{doctor.addedByEmail || '---'}</div>
+                          {doctor.createdAt && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              {new Date(doctor.createdAt?.seconds * 1000).toLocaleDateString('ar-IQ')}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                             doctor.status === 'approved' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
                             doctor.status === 'rejected' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
@@ -459,6 +476,18 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
+                            {doctor.status === 'approved' && (
+                              <button 
+                                onClick={() => {
+                                  setVideoDoctor(doctor);
+                                  setIsVideoModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                title="توليد فيديو إعلاني"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg>
+                              </button>
+                            )}
                             <button 
                               onClick={() => openEditModal(doctor)}
                               className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors"
@@ -506,7 +535,7 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold text-white mb-6">إحصائيات الحالات</h2>
             
             <div className="flex-1 min-h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie
                     data={chartData}
@@ -709,6 +738,16 @@ export default function AdminDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Video Preview Modal */}
+      <VideoPreviewModal 
+        isOpen={isVideoModalOpen}
+        onClose={() => {
+          setIsVideoModalOpen(false);
+          setVideoDoctor(null);
+        }}
+        doctor={videoDoctor}
+      />
     </div>
   );
 }

@@ -75,6 +75,8 @@ export interface Doctor {
   phone: string;
   status: 'pending' | 'approved' | 'rejected';
   addedBy: string;
+  addedByEmail?: string;
+  addedByName?: string;
   lat?: number;
   lng?: number;
   createdAt?: any;
@@ -98,13 +100,15 @@ export interface Review {
   createdAt?: any;
 }
 
-export const addDoctor = async (doctorData: Omit<Doctor, 'id' | 'status' | 'addedBy' | 'createdAt'>) => {
+export const addDoctor = async (doctorData: Omit<Doctor, 'id' | 'status' | 'addedBy' | 'createdAt' | 'addedByEmail' | 'addedByName'>) => {
   if (!auth.currentUser) throw new Error("يجب تسجيل الدخول لإضافة طبيب");
   
   const newDoctor: Doctor = {
     ...doctorData,
     status: 'pending',
     addedBy: auth.currentUser.uid,
+    addedByEmail: auth.currentUser.email || 'غير معروف',
+    addedByName: auth.currentUser.displayName || 'مستخدم',
     createdAt: serverTimestamp()
   };
   

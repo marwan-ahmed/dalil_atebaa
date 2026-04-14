@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.17.0",
     "@hookform/resolvers": "^5.2.1",
+    "@remotion/player": "^4.0.448",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -26,6 +27,7 @@
     "react-dom": "^19.2.1",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.8.1",
+    "remotion": "^4.0.448",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
