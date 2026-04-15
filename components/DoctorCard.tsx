@@ -88,7 +88,9 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
           <h3 className="text-xl font-bold text-gray-100 mb-1 group-hover:text-gold-400 transition-colors flex items-center gap-2">
             {getDisplayName()}
             {doctor.isVerified && (
-              <BadgeCheck className="text-blue-400 shrink-0" size={18} title="حساب موثق" />
+              <span title="حساب موثق">
+                <BadgeCheck className="text-blue-400 shrink-0" size={18} />
+              </span>
             )}
           </h3>
           <p className="text-gold-500/80 text-sm font-medium mb-4">{doctor.specialty}</p>

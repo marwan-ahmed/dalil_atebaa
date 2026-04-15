@@ -172,7 +172,9 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
                 <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center sm:justify-start gap-2">
                   {getDisplayName()}
                   {doctor.isVerified && (
-                    <BadgeCheck className="text-blue-400" size={24} title="حساب موثق" />
+                    <span title="حساب موثق">
+                      <BadgeCheck className="text-blue-400" size={24} />
+                    </span>
                   )}
                 </h2>
                 <p className="text-gold-400 text-lg font-medium mb-4">{doctor.specialty}</p>

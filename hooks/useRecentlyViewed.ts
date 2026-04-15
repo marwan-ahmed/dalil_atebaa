@@ -9,6 +9,7 @@ export function useRecentlyViewed() {
     const stored = localStorage.getItem('doctor_recent');
     if (stored) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setRecentIds(JSON.parse(stored));
       } catch (e) {
         console.error('Failed to parse recent', e);
