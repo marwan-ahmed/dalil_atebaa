@@ -14,7 +14,7 @@ import { STANDARD_SPECIALTIES } from '@/lib/specialties';
 export default function DirectoryPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>('الكل');
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>('جميع التخصصات');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export default function DirectoryPage() {
   const otherSpecialties = Array.from(new Set(doctors.filter(d => d.category === 'doctor' || !d.category).map(d => d.specialty)))
     .filter(spec => spec && !STANDARD_SPECIALTIES.includes(spec));
 
-  const specialties = ['الكل', ...availableSpecialties, ...otherSpecialties];
+  const specialties = ['جميع التخصصات', ...availableSpecialties, ...otherSpecialties];
 
   const filteredDoctors = doctors.filter(doc => {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -70,13 +70,13 @@ export default function DirectoryPage() {
     // Only apply specialty filter if we are looking at doctors
     const matchesSpecialty = selectedCategory !== 'doctor' && selectedCategory !== 'all' 
       ? true 
-      : selectedSpecialty === 'الكل' || doc.specialty === selectedSpecialty;
+      : selectedSpecialty === 'جميع التخصصات' || doc.specialty === selectedSpecialty;
       
     return matchesSearch && matchesCategory && matchesSpecialty;
   });
 
   const categories = [
-    { id: 'all', label: 'الكل' },
+    { id: 'all', label: 'جميع الفئات' },
     { id: 'doctor', label: 'الأطباء' },
     { id: 'pharmacy', label: 'الصيدليات' },
     { id: 'lab', label: 'المختبرات' },
@@ -85,12 +85,12 @@ export default function DirectoryPage() {
 
   return (
     <main className="flex-1 flex flex-col pb-24 md:pb-0">
-      <section className="py-8 px-6 bg-dark-950 border-b border-white/5">
+      <section className="py-4 md:py-8 px-4 md:px-6 bg-dark-950 border-b border-white/5">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-6">
+          <h1 className="hidden md:block text-3xl md:text-4xl font-bold text-white mb-6">
             ابحث عن <span className="text-gradient-gold">رعايتك الصحية</span>
           </h1>
-          <div className="relative max-w-2xl mx-auto mb-6">
+          <div className="relative max-w-2xl mx-auto mb-4 md:mb-6">
             <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
               <Search className="text-gold-500/50" size={24} />
             </div>
@@ -99,52 +99,95 @@ export default function DirectoryPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="ابحث بالاسم، التخصص، أو المدينة..."
-              className="w-full bg-dark-800/80 backdrop-blur-md border border-gold-500/30 rounded-full py-4 pr-14 pl-6 text-white text-lg focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-all shadow-[0_0_30px_rgba(0,0,0,0.5)]"
+              className="w-full bg-dark-800/80 backdrop-blur-md border border-gold-500/30 rounded-full py-3 md:py-4 pr-12 md:pr-14 pl-6 text-white text-base md:text-lg focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-all shadow-[0_0_30px_rgba(0,0,0,0.5)]"
             />
           </div>
-          
-          {/* Category Filter */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
-            {categories.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setSelectedCategory(cat.id);
-                  if (cat.id !== 'doctor' && cat.id !== 'all') {
-                    setSelectedSpecialty('الكل');
+
+          {/* Mobile Filters (Dropdowns) */}
+          <div className="md:hidden flex flex-row gap-2 mb-2">
+            <div className="relative flex-1">
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  if (e.target.value !== 'doctor' && e.target.value !== 'all') {
+                    setSelectedSpecialty('جميع التخصصات');
                   }
                 }}
-                className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
-                  selectedCategory === cat.id 
-                    ? 'bg-gradient-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105' 
-                    : 'bg-dark-800 text-gray-400 hover:bg-dark-700 hover:text-white border border-white/5'
-                }`}
+                className="w-full bg-dark-800 border border-white/10 rounded-xl px-3 py-3 text-white text-xs sm:text-sm focus:outline-none focus:border-gold-500/50 appearance-none"
               >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-          
-          {/* Specialty Filter (Only show if 'all' or 'doctor' is selected) */}
-          {(selectedCategory === 'all' || selectedCategory === 'doctor') && (
-            <div className="overflow-x-auto custom-scrollbar pb-2 max-w-4xl mx-auto">
-              <div className="flex items-center justify-center sm:justify-start gap-2 min-w-max px-2">
-                {specialties.map(specialty => (
-                  <button
-                    key={specialty}
-                    onClick={() => setSelectedSpecialty(specialty)}
-                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                      selectedSpecialty === specialty 
-                        ? 'bg-gold-500/20 text-gold-400 border border-gold-500/50' 
-                        : 'bg-dark-800 text-gray-300 hover:bg-dark-700 border border-white/5 hover:border-gold-500/30'
-                    }`}
-                  >
-                    {specialty}
-                  </button>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.label}</option>
                 ))}
+              </select>
+              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
             </div>
-          )}
+
+            {(selectedCategory === 'all' || selectedCategory === 'doctor') && (
+              <div className="relative flex-1">
+                <select
+                  value={selectedSpecialty}
+                  onChange={(e) => setSelectedSpecialty(e.target.value)}
+                  className="w-full bg-dark-800 border border-white/10 rounded-xl px-3 py-3 text-white text-xs sm:text-sm focus:outline-none focus:border-gold-500/50 appearance-none"
+                >
+                  {specialties.map(specialty => (
+                    <option key={specialty} value={specialty}>{specialty}</option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Desktop Filters (Buttons) */}
+          <div className="hidden md:block">
+            {/* Category Filter */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    if (cat.id !== 'doctor' && cat.id !== 'all') {
+                      setSelectedSpecialty('جميع التخصصات');
+                    }
+                  }}
+                  className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+                    selectedCategory === cat.id 
+                      ? 'bg-gradient-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105' 
+                      : 'bg-dark-800 text-gray-400 hover:bg-dark-700 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* Specialty Filter (Only show if 'all' or 'doctor' is selected) */}
+            {(selectedCategory === 'all' || selectedCategory === 'doctor') && (
+              <div className="overflow-x-auto custom-scrollbar pb-2 max-w-4xl mx-auto">
+                <div className="flex items-center justify-center sm:justify-start gap-2 min-w-max px-2">
+                  {specialties.map(specialty => (
+                    <button
+                      key={specialty}
+                      onClick={() => setSelectedSpecialty(specialty)}
+                      className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                        selectedSpecialty === specialty 
+                          ? 'bg-gold-500/20 text-gold-400 border border-gold-500/50' 
+                          : 'bg-dark-800 text-gray-300 hover:bg-dark-700 border border-white/5 hover:border-gold-500/30'
+                      }`}
+                    >
+                      {specialty}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
