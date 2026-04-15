@@ -5,7 +5,8 @@ import { Doctor, Review, addReview, handleFirestoreError, OperationType } from '
 import { auth, db } from '@/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star, MessageSquare, Send, Pill, FlaskConical, HeartPulse } from 'lucide-react';
+import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star, MessageSquare, Send, Pill, FlaskConical, HeartPulse, MessageCircle, Share2, Heart, BadgeCheck } from 'lucide-react';
+import { useFavorites } from '@/hooks/useFavorites';
 
 interface DoctorDetailsModalProps {
   doctor: Doctor | null;
@@ -19,6 +20,7 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
     if (!isOpen || !doctor?.id) return;
@@ -95,6 +97,25 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
     return doctor.name;
   };
 
+  const handleShare = async () => {
+    const text = `${getDisplayName()}\nالتخصص: ${doctor.specialty}\nالعنوان: ${doctor.address}\nللحجز: ${doctor.phone}\n\nعبر دليل أطباء سامراء`;
+    if (navigator.share) {
+      try { await navigator.share({ title: getDisplayName(), text }); } catch(e) {}
+    } else {
+      navigator.clipboard.writeText(text);
+      alert('تم نسخ معلومات الكيان الطبي بنجاح!');
+    }
+  };
+
+  const getWhatsAppLink = (phone: string) => {
+    let formatted = phone.replace(/\D/g, '');
+    if (formatted.startsWith('0')) {
+      formatted = '964' + formatted.substring(1);
+    }
+    const message = encodeURIComponent(`مرحباً، أود الاستفسار عن الحجز في ${doctor.category === 'pharmacy' ? 'صيدليتكم' : doctor.category === 'lab' ? 'مختبركم' : 'عيادتكم'}...`);
+    return `https://wa.me/${formatted}?text=${message}`;
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -115,21 +136,45 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
           {/* Header Pattern */}
           <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-gold-500/10 to-transparent opacity-50 pointer-events-none" />
           
-          <button 
-            onClick={onClose}
-            className="absolute top-4 left-4 p-2 rounded-full bg-dark-800/50 text-gray-400 hover:text-white hover:bg-dark-800 transition-colors z-10"
-          >
-            <X size={20} />
-          </button>
+          <div className="absolute top-4 left-4 flex items-center gap-2 z-50">
+            <button 
+              onClick={onClose}
+              className="p-2 rounded-full bg-dark-800/80 text-gray-400 hover:text-white hover:bg-dark-700 transition-colors backdrop-blur-sm"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="absolute top-4 right-4 flex items-center gap-2 z-50">
+            <button 
+              onClick={handleShare}
+              className="p-2 rounded-full bg-dark-800/80 text-gray-400 hover:text-white hover:bg-dark-700 transition-colors backdrop-blur-sm"
+              title="مشاركة"
+            >
+              <Share2 size={20} />
+            </button>
+            <button 
+              onClick={() => toggleFavorite(doctor.id!)}
+              className="p-2 rounded-full bg-dark-800/80 text-gray-400 hover:text-white hover:bg-dark-700 transition-colors backdrop-blur-sm"
+              title={isFavorite(doctor.id!) ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+            >
+              <Heart size={20} fill={isFavorite(doctor.id!) ? "#ef4444" : "none"} className={isFavorite(doctor.id!) ? "text-red-500" : ""} />
+            </button>
+          </div>
 
           <div className="p-8 relative z-10 overflow-y-auto custom-scrollbar">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 mt-4">
               <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-dark-800 to-dark-950 border border-gold-500/30 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(212,175,55,0.15)]">
                 {getCategoryIcon()}
               </div>
               
               <div className="text-center sm:text-right flex-1">
-                <h2 className="text-3xl font-bold text-white mb-2">{getDisplayName()}</h2>
+                <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center sm:justify-start gap-2">
+                  {getDisplayName()}
+                  {doctor.isVerified && (
+                    <BadgeCheck className="text-blue-400" size={24} title="حساب موثق" />
+                  )}
+                </h2>
                 <p className="text-gold-400 text-lg font-medium mb-4">{doctor.specialty}</p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
                   {(doctor.category === 'doctor' || !doctor.category) && (
@@ -178,21 +223,32 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
               )}
             </div>
 
-            <div className="bg-gradient-to-r from-gold-500/10 via-gold-500/5 to-transparent rounded-2xl p-6 border border-gold-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
+            <div className="bg-gradient-to-r from-gold-500/10 via-gold-500/5 to-transparent rounded-2xl p-6 border border-gold-500/20 flex flex-col items-center justify-center gap-4 mb-8 text-center">
               <div>
-                <h4 className="text-gold-400 font-bold mb-1 flex items-center gap-2">
+                <h4 className="text-gold-400 font-bold mb-1 flex items-center justify-center gap-2">
                   <Calendar size={18} />
                   احجز موعدك الآن
                 </h4>
                 <p className="text-sm text-gray-400">تواصل مع العيادة مباشرة لتأكيد الحجز</p>
               </div>
-              <a 
-                href={`tel:${doctor.phone}`}
-                className="w-full sm:w-auto px-8 py-3 rounded-xl bg-gradient-gold text-black font-bold text-center hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2"
-              >
-                <Phone size={18} />
-                اتصال
-              </a>
+              <div className="flex w-full gap-3 mt-2">
+                <a 
+                  href={getWhatsAppLink(doctor.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 px-6 py-3 rounded-xl bg-[#0f1f15] text-[#25D366] border border-[#25D366]/30 font-bold text-center hover:bg-[#152e1f] transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={18} />
+                  واتساب
+                </a>
+                <a 
+                  href={`tel:${doctor.phone}`}
+                  className="flex-1 px-6 py-3 rounded-xl bg-gradient-gold text-black font-bold text-center hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2"
+                >
+                  <Phone size={18} />
+                  اتصال
+                </a>
+              </div>
             </div>
 
             {/* Reviews Section */}

@@ -82,6 +82,7 @@ export interface Doctor {
   createdAt?: any;
   category?: 'doctor' | 'pharmacy' | 'lab' | 'nursing';
   workingHours?: string;
+  isVerified?: boolean;
 }
 
 export interface UserProfile {

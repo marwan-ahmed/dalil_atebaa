@@ -5,7 +5,8 @@ import { Doctor, Review, handleFirestoreError, OperationType } from '@/lib/fireb
 import { db } from '@/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { MapPin, Phone, Stethoscope, Star, Pill, FlaskConical, HeartPulse, Clock } from 'lucide-react';
+import { MapPin, Phone, Stethoscope, Star, Pill, FlaskConical, HeartPulse, Clock, Heart, BadgeCheck } from 'lucide-react';
+import { useFavorites } from '@/hooks/useFavorites';
 
 interface DoctorCardProps {
   doctor: Doctor;
@@ -16,6 +17,7 @@ interface DoctorCardProps {
 export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) {
   const [averageRating, setAverageRating] = useState<number | null>(null);
   const [reviewCount, setReviewCount] = useState(0);
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   useEffect(() => {
     if (!doctor.id) return;
@@ -69,14 +71,25 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
     >
       <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl group-hover:bg-gold-500/10 transition-colors" />
       
+      <button 
+        onClick={(e) => { e.stopPropagation(); toggleFavorite(doctor.id!); }}
+        className="absolute top-4 left-4 z-20 p-2 rounded-full bg-dark-900/50 hover:bg-dark-800 transition-colors border border-white/5"
+        title={isFavorite(doctor.id!) ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+      >
+        <Heart size={18} fill={isFavorite(doctor.id!) ? "#ef4444" : "none"} className={isFavorite(doctor.id!) ? "text-red-500" : "text-gray-400"} />
+      </button>
+
       <div className="flex items-start gap-4 relative z-10">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-dark-900 to-dark-800 border border-gold-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
           {getCategoryIcon()}
         </div>
         
         <div className="flex-1">
-          <h3 className="text-xl font-bold text-gray-100 mb-1 group-hover:text-gold-400 transition-colors">
+          <h3 className="text-xl font-bold text-gray-100 mb-1 group-hover:text-gold-400 transition-colors flex items-center gap-2">
             {getDisplayName()}
+            {doctor.isVerified && (
+              <BadgeCheck className="text-blue-400 shrink-0" size={18} title="حساب موثق" />
+            )}
           </h3>
           <p className="text-gold-500/80 text-sm font-medium mb-4">{doctor.specialty}</p>
           

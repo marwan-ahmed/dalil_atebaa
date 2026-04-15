@@ -487,16 +487,31 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
                             {doctor.status === 'approved' && (
-                              <button 
-                                onClick={() => {
-                                  setVideoDoctor(doctor);
-                                  setIsVideoModalOpen(true);
-                                }}
-                                className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"
-                                title="توليد فيديو إعلاني"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg>
-                              </button>
+                              <>
+                                <button 
+                                  onClick={async () => {
+                                    try {
+                                      await updateDoctorDetails(doctor.id!, { isVerified: !doctor.isVerified });
+                                    } catch (e) {
+                                      alert('حدث خطأ أثناء التوثيق');
+                                    }
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors ${doctor.isVerified ? 'bg-gold-500/20 text-gold-400 hover:bg-gold-500/30' : 'bg-gray-500/10 text-gray-400 hover:bg-gray-500/20'}`}
+                                  title={doctor.isVerified ? "إلغاء التوثيق" : "توثيق الكيان"}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setVideoDoctor(doctor);
+                                    setIsVideoModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"
+                                  title="توليد فيديو إعلاني"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg>
+                                </button>
+                              </>
                             )}
                             <button 
                               onClick={() => openEditModal(doctor)}

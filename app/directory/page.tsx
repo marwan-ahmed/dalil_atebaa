@@ -1,24 +1,42 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DoctorCard from '@/components/DoctorCard';
 import DoctorDetailsModal from '@/components/DoctorDetailsModal';
 import MapWrapper from '@/components/MapWrapper';
 import { db } from '@/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Doctor, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
-import { Search, LayoutGrid, Map as MapIcon } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Search, LayoutGrid, Map as MapIcon, Heart, Clock, ChevronLeft, Pill, FlaskConical, HeartPulse, Stethoscope } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { STANDARD_SPECIALTIES } from '@/lib/specialties';
+import { useFavorites } from '@/hooks/useFavorites';
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
 
 export default function DirectoryPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('جميع التخصصات');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  
+  const { favorites } = useFavorites();
+  const { recentIds, addRecent } = useRecentlyViewed();
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchFocused(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const q = query(
@@ -48,6 +66,11 @@ export default function DirectoryPage() {
     return () => unsubscribe();
   }, []);
 
+  const handleDoctorClick = (doctor: Doctor) => {
+    setSelectedDoctor(doctor);
+    addRecent(doctor.id!);
+  };
+
   // Filter out specialties that have no doctors, but keep the standard order
   const availableSpecialties = STANDARD_SPECIALTIES.filter(spec => 
     doctors.some(d => d.specialty === spec && (d.category === 'doctor' || !d.category))
@@ -60,6 +83,8 @@ export default function DirectoryPage() {
   const specialties = ['جميع التخصصات', ...availableSpecialties, ...otherSpecialties];
 
   const filteredDoctors = doctors.filter(doc => {
+    if (showFavoritesOnly && !favorites.includes(doc.id!)) return false;
+
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           doc.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           doc.address.toLowerCase().includes(searchQuery.toLowerCase());
@@ -75,6 +100,17 @@ export default function DirectoryPage() {
     return matchesSearch && matchesCategory && matchesSpecialty;
   });
 
+  const searchSuggestions = searchQuery.length >= 2 
+    ? doctors.filter(doc => 
+        doc.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        doc.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 5)
+    : [];
+
+  const recentDoctors = recentIds
+    .map(id => doctors.find(d => d.id === id))
+    .filter((d): d is Doctor => d !== undefined);
+
   const categories = [
     { id: 'all', label: 'جميع الفئات' },
     { id: 'doctor', label: 'الأطباء' },
@@ -86,11 +122,11 @@ export default function DirectoryPage() {
   return (
     <main className="flex-1 flex flex-col pb-24 md:pb-0">
       <section className="py-4 md:py-8 px-4 md:px-6 bg-dark-950 border-b border-white/5">
-        <div className="max-w-4xl mx-auto text-center">
+        <div className="max-w-4xl mx-auto text-center relative z-20">
           <h1 className="hidden md:block text-3xl md:text-4xl font-bold text-white mb-6">
             ابحث عن <span className="text-gradient-gold">رعايتك الصحية</span>
           </h1>
-          <div className="relative max-w-2xl mx-auto mb-4 md:mb-6">
+          <div className="relative max-w-2xl mx-auto mb-4 md:mb-6" ref={searchContainerRef}>
             <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
               <Search className="text-gold-500/50" size={24} />
             </div>
@@ -98,9 +134,40 @@ export default function DirectoryPage() {
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
               placeholder="ابحث بالاسم، التخصص، أو المدينة..."
               className="w-full bg-dark-800/80 backdrop-blur-md border border-gold-500/30 rounded-full py-3 md:py-4 pr-12 md:pr-14 pl-6 text-white text-base md:text-lg focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-all shadow-[0_0_30px_rgba(0,0,0,0.5)]"
             />
+            
+            {/* Smart Search Autocomplete */}
+            <AnimatePresence>
+              {isSearchFocused && searchQuery.length >= 2 && searchSuggestions.length > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute top-full left-0 right-0 mt-2 bg-dark-800 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+                >
+                  {searchSuggestions.map(doc => (
+                    <div 
+                      key={doc.id}
+                      onClick={() => {
+                        handleDoctorClick(doc);
+                        setIsSearchFocused(false);
+                        setSearchQuery('');
+                      }}
+                      className="flex items-center justify-between p-4 hover:bg-dark-700 cursor-pointer border-b border-white/5 last:border-0 transition-colors text-right"
+                    >
+                      <div>
+                        <div className="text-white font-bold text-sm">{doc.name}</div>
+                        <div className="text-gold-500 text-xs mt-1">{doc.specialty}</div>
+                      </div>
+                      <ChevronLeft size={16} className="text-gray-500" />
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Mobile Filters (Dropdowns) */}
@@ -193,6 +260,36 @@ export default function DirectoryPage() {
 
       <section className="py-8 px-6 flex-1 bg-dark-950">
         <div className="max-w-7xl mx-auto">
+          {/* Recently Viewed Section */}
+          {recentDoctors.length > 0 && (
+            <div className="mb-10">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Clock className="text-gold-500" size={20} />
+                شوهد مؤخراً
+              </h2>
+              <div className="flex overflow-x-auto gap-4 pb-4 custom-scrollbar snap-x">
+                {recentDoctors.map(doc => (
+                  <div 
+                    key={doc.id}
+                    onClick={() => handleDoctorClick(doc)}
+                    className="snap-start shrink-0 w-64 bg-dark-800/50 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 transition-all flex items-center gap-3"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-dark-900 border border-gold-500/20 flex items-center justify-center shrink-0">
+                      {doc.category === 'pharmacy' ? <Pill className="text-gold-500" size={20} /> :
+                       doc.category === 'lab' ? <FlaskConical className="text-gold-500" size={20} /> :
+                       doc.category === 'nursing' ? <HeartPulse className="text-gold-500" size={20} /> :
+                       <Stethoscope className="text-gold-500" size={20} />}
+                    </div>
+                    <div className="overflow-hidden">
+                      <h3 className="text-white font-bold text-sm truncate">{doc.name}</h3>
+                      <p className="text-gold-500/80 text-xs truncate">{doc.specialty}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-4">
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -202,21 +299,31 @@ export default function DirectoryPage() {
               <span className="text-gray-500 text-sm hidden sm:inline-block">{filteredDoctors.length} نتيجة متاحة</span>
             </div>
             
-            <div className="flex items-center bg-dark-800 rounded-xl p-1 border border-white/5">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setViewMode('grid')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-dark-900 text-gold-400 shadow-md' : 'text-gray-400 hover:text-gray-200'}`}
+                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border ${showFavoritesOnly ? 'bg-red-500/10 text-red-400 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-dark-800 text-gray-400 border-white/5 hover:text-gray-200'}`}
               >
-                <LayoutGrid size={18} />
-                <span className="text-sm font-medium">شبكة</span>
+                <Heart size={18} fill={showFavoritesOnly ? "currentColor" : "none"} />
+                <span className="text-sm font-medium hidden sm:inline-block">المفضلة</span>
               </button>
-              <button
-                onClick={() => setViewMode('map')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'map' ? 'bg-dark-900 text-gold-400 shadow-md' : 'text-gray-400 hover:text-gray-200'}`}
-              >
-                <MapIcon size={18} />
-                <span className="text-sm font-medium">خريطة</span>
-              </button>
+
+              <div className="flex items-center bg-dark-800 rounded-xl p-1 border border-white/5">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-dark-900 text-gold-400 shadow-md' : 'text-gray-400 hover:text-gray-200'}`}
+                >
+                  <LayoutGrid size={18} />
+                  <span className="text-sm font-medium hidden sm:inline-block">شبكة</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'map' ? 'bg-dark-900 text-gold-400 shadow-md' : 'text-gray-400 hover:text-gray-200'}`}
+                >
+                  <MapIcon size={18} />
+                  <span className="text-sm font-medium hidden sm:inline-block">خريطة</span>
+                </button>
+              </div>
             </div>
           </div>
 
