@@ -5,7 +5,7 @@ import { Doctor, Review, handleFirestoreError, OperationType } from '@/lib/fireb
 import { db } from '@/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { MapPin, Phone, Stethoscope, Star } from 'lucide-react';
+import { MapPin, Phone, Stethoscope, Star, Pill, FlaskConical, HeartPulse, Clock } from 'lucide-react';
 
 interface DoctorCardProps {
   doctor: Doctor;
@@ -43,6 +43,22 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
     return () => unsubscribe();
   }, [doctor.id]);
 
+  const getCategoryIcon = () => {
+    switch (doctor.category) {
+      case 'pharmacy': return <Pill className="text-gold-500" size={28} />;
+      case 'lab': return <FlaskConical className="text-gold-500" size={28} />;
+      case 'nursing': return <HeartPulse className="text-gold-500" size={28} />;
+      default: return <Stethoscope className="text-gold-500" size={28} />;
+    }
+  };
+
+  const getDisplayName = () => {
+    if (doctor.category === 'doctor' || !doctor.category) {
+      return doctor.name.startsWith('د.') ? doctor.name : `د. ${doctor.name}`;
+    }
+    return doctor.name;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -55,12 +71,12 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
       
       <div className="flex items-start gap-4 relative z-10">
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-dark-900 to-dark-800 border border-gold-500/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-          <Stethoscope className="text-gold-500" size={28} />
+          {getCategoryIcon()}
         </div>
         
         <div className="flex-1">
           <h3 className="text-xl font-bold text-gray-100 mb-1 group-hover:text-gold-400 transition-colors">
-            د. {doctor.name}
+            {getDisplayName()}
           </h3>
           <p className="text-gold-500/80 text-sm font-medium mb-4">{doctor.specialty}</p>
           
@@ -71,8 +87,14 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
             </div>
             <div className="flex items-center gap-2 text-gray-400 text-sm">
               <Phone size={14} className="text-gold-500/50" />
-              <span>{doctor.phone}</span>
+              <span dir="ltr">{doctor.phone}</span>
             </div>
+            {doctor.workingHours && (
+              <div className="flex items-center gap-2 text-gray-400 text-sm">
+                <Clock size={14} className="text-gold-500/50" />
+                <span className="truncate">{doctor.workingHours}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

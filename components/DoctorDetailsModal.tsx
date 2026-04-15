@@ -5,7 +5,7 @@ import { Doctor, Review, addReview, handleFirestoreError, OperationType } from '
 import { auth, db } from '@/firebase';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star, MessageSquare, Send } from 'lucide-react';
+import { X, MapPin, Phone, Stethoscope, Calendar, Clock, Award, Star, MessageSquare, Send, Pill, FlaskConical, HeartPulse } from 'lucide-react';
 
 interface DoctorDetailsModalProps {
   doctor: Doctor | null;
@@ -79,6 +79,22 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
     ? (reviews.reduce((acc, rev) => acc + rev.rating, 0) / reviews.length).toFixed(1)
     : 'جديد';
 
+  const getCategoryIcon = () => {
+    switch (doctor.category) {
+      case 'pharmacy': return <Pill className="text-gold-400" size={40} />;
+      case 'lab': return <FlaskConical className="text-gold-400" size={40} />;
+      case 'nursing': return <HeartPulse className="text-gold-400" size={40} />;
+      default: return <Stethoscope className="text-gold-400" size={40} />;
+    }
+  };
+
+  const getDisplayName = () => {
+    if (doctor.category === 'doctor' || !doctor.category) {
+      return doctor.name.startsWith('د.') ? doctor.name : `د. ${doctor.name}`;
+    }
+    return doctor.name;
+  };
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -109,16 +125,18 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
           <div className="p-8 relative z-10 overflow-y-auto custom-scrollbar">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
               <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-dark-800 to-dark-950 border border-gold-500/30 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(212,175,55,0.15)]">
-                <Stethoscope className="text-gold-400" size={40} />
+                {getCategoryIcon()}
               </div>
               
               <div className="text-center sm:text-right flex-1">
-                <h2 className="text-3xl font-bold text-white mb-2">د. {doctor.name}</h2>
+                <h2 className="text-3xl font-bold text-white mb-2">{getDisplayName()}</h2>
                 <p className="text-gold-400 text-lg font-medium mb-4">{doctor.specialty}</p>
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                  <span className="px-3 py-1 rounded-full bg-dark-800 border border-white/5 text-xs text-gray-300 flex items-center gap-1">
-                    <Award size={12} className="text-gold-500" /> استشاري
-                  </span>
+                  {(doctor.category === 'doctor' || !doctor.category) && (
+                    <span className="px-3 py-1 rounded-full bg-dark-800 border border-white/5 text-xs text-gray-300 flex items-center gap-1">
+                      <Award size={12} className="text-gold-500" /> استشاري
+                    </span>
+                  )}
                   <span className="px-3 py-1 rounded-full bg-dark-800 border border-white/5 text-xs text-gray-300 flex items-center gap-1">
                     <Star size={12} className="text-gold-500" /> {averageRating} {reviews.length > 0 && `(${reviews.length} تقييم)`}
                   </span>
@@ -146,6 +164,18 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
                   <p className="text-gray-200 text-lg font-mono" dir="ltr">{doctor.phone}</p>
                 </div>
               </div>
+
+              {doctor.workingHours && (
+                <div className="bg-dark-800/50 rounded-2xl p-5 border border-white/5 flex items-start gap-4 sm:col-span-2">
+                  <div className="w-10 h-10 rounded-full bg-dark-900 flex items-center justify-center shrink-0">
+                    <Clock className="text-gold-500" size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm text-gray-500 mb-1">أوقات الدوام</h4>
+                    <p className="text-gray-200 text-sm leading-relaxed">{doctor.workingHours}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-gradient-to-r from-gold-500/10 via-gold-500/5 to-transparent rounded-2xl p-6 border border-gold-500/20 flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">

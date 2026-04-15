@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   const [selectedDoctors, setSelectedDoctors] = useState<Set<string>>(new Set());
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', specialty: '', phone: '', address: '' });
+  const [editForm, setEditForm] = useState({ name: '', specialty: '', phone: '', address: '', category: 'doctor' as any, workingHours: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   
   // Video Modal State
@@ -206,7 +206,9 @@ export default function AdminDashboard() {
       name: doctor.name,
       specialty: doctor.specialty,
       phone: doctor.phone,
-      address: doctor.address
+      address: doctor.address,
+      category: doctor.category || 'doctor',
+      workingHours: doctor.workingHours || ''
     });
   };
 
@@ -454,8 +456,16 @@ export default function AdminDashboard() {
                         <td className="px-6 py-4">
                           <div className="font-medium text-gray-200">{doctor.name}</div>
                           <div className="text-xs text-gray-500">{doctor.phone}</div>
+                          {doctor.workingHours && <div className="text-xs text-gold-400 mt-1">🕒 {doctor.workingHours}</div>}
                         </td>
-                        <td className="px-6 py-4 text-gray-300">{doctor.specialty}</td>
+                        <td className="px-6 py-4">
+                          <div className="text-gray-300">{doctor.specialty}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {doctor.category === 'pharmacy' ? 'صيدلية' : 
+                             doctor.category === 'lab' ? 'مختبر تحليلات' : 
+                             doctor.category === 'nursing' ? 'عيادة تمريض' : 'طبيب/عيادة'}
+                          </div>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-300">{doctor.addedByName || 'غير معروف'}</div>
                           <div className="text-xs text-gray-500">{doctor.addedByEmail || '---'}</div>
@@ -664,9 +674,34 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto custom-scrollbar">
                 <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">اسم الطبيب</label>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">نوع الكيان الطبي</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'doctor', label: 'طبيب/عيادة' },
+                      { id: 'pharmacy', label: 'صيدلية' },
+                      { id: 'lab', label: 'مختبر تحليلات' },
+                      { id: 'nursing', label: 'عيادة تمريض' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setEditForm({...editForm, category: cat.id as any, specialty: cat.id === 'doctor' ? STANDARD_SPECIALTIES[0] : cat.label})}
+                        className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
+                          editForm.category === cat.id 
+                            ? 'bg-gold-500/20 border-gold-500 text-gold-400' 
+                            : 'bg-dark-800 border-white/10 text-gray-400 hover:bg-dark-700'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">الاسم</label>
                   <input
                     type="text"
                     required
@@ -676,19 +711,21 @@ export default function AdminDashboard() {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">التخصص</label>
-                  <select
-                    required
-                    value={editForm.specialty}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, specialty: e.target.value }))}
-                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 appearance-none"
-                  >
-                    {STANDARD_SPECIALTIES.map(spec => (
-                      <option key={spec} value={spec}>{spec}</option>
-                    ))}
-                  </select>
-                </div>
+                {editForm.category === 'doctor' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-1">التخصص</label>
+                    <select
+                      required
+                      value={editForm.specialty}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, specialty: e.target.value }))}
+                      className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 appearance-none"
+                    >
+                      {STANDARD_SPECIALTIES.map(spec => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-400 mb-1">رقم الهاتف</label>
@@ -710,6 +747,17 @@ export default function AdminDashboard() {
                     value={editForm.address}
                     onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
                     className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">أوقات الدوام</label>
+                  <input
+                    type="text"
+                    value={editForm.workingHours}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, workingHours: e.target.value }))}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50"
+                    placeholder="مثال: من 4 عصراً إلى 9 مساءً"
                   />
                 </div>
 

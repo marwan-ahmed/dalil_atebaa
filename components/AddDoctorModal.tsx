@@ -18,6 +18,8 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
     specialty: STANDARD_SPECIALTIES[0],
     address: '',
     phone: '',
+    category: 'doctor' as 'doctor' | 'pharmacy' | 'lab' | 'nursing',
+    workingHours: '',
     lat: undefined as number | undefined,
     lng: undefined as number | undefined
   });
@@ -37,7 +39,7 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
-        setFormData({ name: '', specialty: '', address: '', phone: '', lat: undefined, lng: undefined });
+        setFormData({ name: '', specialty: STANDARD_SPECIALTIES[0], address: '', phone: '', category: 'doctor', workingHours: '', lat: undefined, lng: undefined });
         onClose();
       }, 2000);
     } catch (err: any) {
@@ -87,31 +89,58 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">نوع الكيان الطبي</label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {[
+                      { id: 'doctor', label: 'طبيب/عيادة' },
+                      { id: 'pharmacy', label: 'صيدلية' },
+                      { id: 'lab', label: 'مختبر تحليلات' },
+                      { id: 'nursing', label: 'عيادة تمريض' }
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFormData({...formData, category: cat.id as any, specialty: cat.id === 'doctor' ? STANDARD_SPECIALTIES[0] : cat.label})}
+                        className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
+                          formData.category === cat.id 
+                            ? 'bg-gold-500/20 border-gold-500 text-gold-400' 
+                            : 'bg-dark-800 border-white/10 text-gray-400 hover:bg-dark-700'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">اسم الطبيب</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">الاسم</label>
                   <input 
                     type="text" 
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all"
-                    placeholder="د. أحمد محمد"
+                    placeholder={formData.category === 'doctor' ? "د. أحمد محمد" : "اسم الكيان (مثال: صيدلية الشفاء)"}
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">التخصص</label>
-                  <select 
-                    required
-                    value={formData.specialty}
-                    onChange={(e) => setFormData({...formData, specialty: e.target.value})}
-                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all appearance-none"
-                  >
-                    {STANDARD_SPECIALTIES.map(spec => (
-                      <option key={spec} value={spec}>{spec}</option>
-                    ))}
-                  </select>
-                </div>
+                {formData.category === 'doctor' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1">التخصص</label>
+                    <select 
+                      required
+                      value={formData.specialty}
+                      onChange={(e) => setFormData({...formData, specialty: e.target.value})}
+                      className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all appearance-none"
+                    >
+                      {STANDARD_SPECIALTIES.map(spec => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">العنوان</label>
@@ -137,6 +166,17 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                     className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all text-right"
                     placeholder="07700000000"
                     dir="ltr"
+                  />
+                </div>
+
+                <div className={formData.category === 'doctor' ? "md:col-span-2" : ""}>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">أوقات الدوام</label>
+                  <input 
+                    type="text" 
+                    value={formData.workingHours}
+                    onChange={(e) => setFormData({...formData, workingHours: e.target.value})}
+                    className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all"
+                    placeholder="مثال: من 4 عصراً إلى 9 مساءً"
                   />
                 </div>
               </div>

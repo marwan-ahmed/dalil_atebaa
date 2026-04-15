@@ -80,6 +80,8 @@ export interface Doctor {
   lat?: number;
   lng?: number;
   createdAt?: any;
+  category?: 'doctor' | 'pharmacy' | 'lab' | 'nursing';
+  workingHours?: string;
 }
 
 export interface UserProfile {

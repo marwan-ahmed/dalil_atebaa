@@ -15,6 +15,7 @@ export default function DirectoryPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('الكل');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
@@ -49,11 +50,11 @@ export default function DirectoryPage() {
 
   // Filter out specialties that have no doctors, but keep the standard order
   const availableSpecialties = STANDARD_SPECIALTIES.filter(spec => 
-    doctors.some(d => d.specialty === spec)
+    doctors.some(d => d.specialty === spec && (d.category === 'doctor' || !d.category))
   );
   
   // Add any non-standard specialties that might exist in the DB
-  const otherSpecialties = Array.from(new Set(doctors.map(d => d.specialty)))
+  const otherSpecialties = Array.from(new Set(doctors.filter(d => d.category === 'doctor' || !d.category).map(d => d.specialty)))
     .filter(spec => spec && !STANDARD_SPECIALTIES.includes(spec));
 
   const specialties = ['الكل', ...availableSpecialties, ...otherSpecialties];
@@ -62,18 +63,34 @@ export default function DirectoryPage() {
     const matchesSearch = doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           doc.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           doc.address.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSpecialty = selectedSpecialty === 'الكل' || doc.specialty === selectedSpecialty;
-    return matchesSearch && matchesSpecialty;
+    
+    const docCategory = doc.category || 'doctor';
+    const matchesCategory = selectedCategory === 'all' || docCategory === selectedCategory;
+    
+    // Only apply specialty filter if we are looking at doctors
+    const matchesSpecialty = selectedCategory !== 'doctor' && selectedCategory !== 'all' 
+      ? true 
+      : selectedSpecialty === 'الكل' || doc.specialty === selectedSpecialty;
+      
+    return matchesSearch && matchesCategory && matchesSpecialty;
   });
+
+  const categories = [
+    { id: 'all', label: 'الكل' },
+    { id: 'doctor', label: 'الأطباء' },
+    { id: 'pharmacy', label: 'الصيدليات' },
+    { id: 'lab', label: 'المختبرات' },
+    { id: 'nursing', label: 'عيادات التمريض' }
+  ];
 
   return (
     <main className="flex-1 flex flex-col pb-24 md:pb-0">
       <section className="py-8 px-6 bg-dark-950 border-b border-white/5">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            ابحث عن <span className="text-gradient-gold">طبيبك المختص</span>
+            ابحث عن <span className="text-gradient-gold">رعايتك الصحية</span>
           </h1>
-          <div className="relative max-w-2xl mx-auto">
+          <div className="relative max-w-2xl mx-auto mb-6">
             <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
               <Search className="text-gold-500/50" size={24} />
             </div>
@@ -86,24 +103,48 @@ export default function DirectoryPage() {
             />
           </div>
           
-          {/* Specialty Filter */}
-          <div className="mt-8 overflow-x-auto custom-scrollbar pb-2 max-w-4xl mx-auto">
-            <div className="flex items-center justify-center sm:justify-start gap-2 min-w-max px-2">
-              {specialties.map(specialty => (
-                <button
-                  key={specialty}
-                  onClick={() => setSelectedSpecialty(specialty)}
-                  className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                    selectedSpecialty === specialty 
-                      ? 'bg-gradient-gold text-black shadow-[0_0_15px_rgba(212,175,55,0.3)]' 
-                      : 'bg-dark-800 text-gray-300 hover:bg-dark-700 border border-white/5 hover:border-gold-500/30'
-                  }`}
-                >
-                  {specialty}
-                </button>
-              ))}
-            </div>
+          {/* Category Filter */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setSelectedCategory(cat.id);
+                  if (cat.id !== 'doctor' && cat.id !== 'all') {
+                    setSelectedSpecialty('الكل');
+                  }
+                }}
+                className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+                  selectedCategory === cat.id 
+                    ? 'bg-gradient-gold text-black shadow-[0_0_20px_rgba(212,175,55,0.4)] scale-105' 
+                    : 'bg-dark-800 text-gray-400 hover:bg-dark-700 hover:text-white border border-white/5'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
           </div>
+          
+          {/* Specialty Filter (Only show if 'all' or 'doctor' is selected) */}
+          {(selectedCategory === 'all' || selectedCategory === 'doctor') && (
+            <div className="overflow-x-auto custom-scrollbar pb-2 max-w-4xl mx-auto">
+              <div className="flex items-center justify-center sm:justify-start gap-2 min-w-max px-2">
+                {specialties.map(specialty => (
+                  <button
+                    key={specialty}
+                    onClick={() => setSelectedSpecialty(specialty)}
+                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                      selectedSpecialty === specialty 
+                        ? 'bg-gold-500/20 text-gold-400 border border-gold-500/50' 
+                        : 'bg-dark-800 text-gray-300 hover:bg-dark-700 border border-white/5 hover:border-gold-500/30'
+                    }`}
+                  >
+                    {specialty}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -113,9 +154,9 @@ export default function DirectoryPage() {
             <div className="flex items-center gap-4">
               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                 <span className="w-2 h-8 bg-gold-500 rounded-full"></span>
-                قائمة الأطباء
+                النتائج
               </h2>
-              <span className="text-gray-500 text-sm hidden sm:inline-block">{filteredDoctors.length} طبيب متاح</span>
+              <span className="text-gray-500 text-sm hidden sm:inline-block">{filteredDoctors.length} نتيجة متاحة</span>
             </div>
             
             <div className="flex items-center bg-dark-800 rounded-xl p-1 border border-white/5">
