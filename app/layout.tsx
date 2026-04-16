@@ -1,6 +1,8 @@
 import type {Metadata, Viewport} from 'next';
 import { Tajawal } from 'next/font/google';
 import Navbar from '@/components/Navbar';
+import FloatingShareButton from '@/components/FloatingShareButton';
+import InstallPrompt from '@/components/InstallPrompt';
 import './globals.css';
 
 const tajawal = Tajawal({
@@ -34,6 +36,8 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <body className="bg-[#0a0f1a] text-gray-100 font-sans antialiased selection:bg-[#d4af37] selection:text-black min-h-screen flex flex-col" suppressHydrationWarning>
         <Navbar />
         {children}
+        <FloatingShareButton />
+        <InstallPrompt />
       </body>
     </html>
   );
