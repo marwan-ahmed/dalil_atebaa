@@ -45,14 +45,26 @@ service cloud.firestore {
     }
 
     match /reviews/{reviewId} {
-      allow read: true;
+      // Public can read approved reviews. Admins read all. Authors read their own.
+      allow read: if (resource.data.status == 'approved') || isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      
+      // Auth users can create pending reviews for themselves
       allow create: if isAuthenticated() &&
                     request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
                     request.resource.data.doctorId is string &&
                     request.resource.data.userName is string && request.resource.data.userName.size() > 0 && request.resource.data.userName.size() < 100 &&
                     request.resource.data.rating is number && request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
                     request.resource.data.comment is string && request.resource.data.comment.size() <= 1000;
-      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      // Admins can update everything (moderation). 
+      // Authors can update their own comment/rating IF it's still pending.
+      allow update: if isAdmin() || 
+                    (isAuthenticated() && resource.data.userId == request.auth.uid && 
+                     resource.data.status == 'pending' && request.resource.data.status == 'pending' &&
+                     request.resource.data.userId == request.auth.uid);
+                     
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
   }
 }

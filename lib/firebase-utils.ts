@@ -35,11 +35,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     errorMessage = error.message;
   } else if (typeof error === 'string') {
     errorMessage = error;
+  } else if (error && typeof error === 'object' && 'message' in error) {
+    errorMessage = String((error as any).message);
   } else {
     try {
-      errorMessage = String(error);
+      errorMessage = JSON.stringify(error);
     } catch (e) {
-      errorMessage = 'Unstringifiable error';
+      errorMessage = String(error);
     }
   }
 
@@ -100,6 +102,7 @@ export interface Review {
   userName: string;
   rating: number;
   comment: string;
+  status: 'pending' | 'approved' | 'rejected';
   createdAt?: any;
 }
 
@@ -167,13 +170,14 @@ export const checkIsAdmin = async (uid: string, email: string | null) => {
   return false;
 };
 
-export const addReview = async (reviewData: Omit<Review, 'id' | 'userId' | 'userName' | 'createdAt'>) => {
+export const addReview = async (reviewData: Omit<Review, 'id' | 'userId' | 'userName' | 'status' | 'createdAt'>) => {
   if (!auth.currentUser) throw new Error("يجب تسجيل الدخول لإضافة تقييم");
   
   const newReview: Review = {
     ...reviewData,
     userId: auth.currentUser.uid,
     userName: auth.currentUser.displayName || 'مستخدم',
+    status: 'pending',
     createdAt: serverTimestamp()
   };
   
@@ -181,6 +185,26 @@ export const addReview = async (reviewData: Omit<Review, 'id' | 'userId' | 'user
     return await addDoc(collection(db, 'reviews'), newReview);
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, 'reviews');
+    throw error;
+  }
+};
+
+export const updateReviewStatus = async (reviewId: string, status: 'approved' | 'rejected') => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  try {
+    return await updateDoc(reviewRef, { status });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `reviews/${reviewId}`);
+    throw error;
+  }
+};
+
+export const deleteReview = async (reviewId: string) => {
+  const reviewRef = doc(db, 'reviews', reviewId);
+  try {
+    return await deleteDoc(reviewRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `reviews/${reviewId}`);
     throw error;
   }
 };

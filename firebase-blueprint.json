@@ -37,9 +37,10 @@
         "userName": { "type": "string", "description": "Name of the user leaving the review" },
         "rating": { "type": "number", "description": "Rating from 1 to 5" },
         "comment": { "type": "string", "description": "Review comment text" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Review approval status" },
         "createdAt": { "type": "timestamp", "description": "When the review was created" }
       },
-      "required": ["doctorId", "userId", "userName", "rating", "comment", "createdAt"]
+      "required": ["doctorId", "userId", "userName", "rating", "comment", "status", "createdAt"]
     }
   },
   "firestore": {

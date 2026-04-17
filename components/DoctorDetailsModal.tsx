@@ -28,7 +28,8 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
     setLoadingReviews(true);
     const q = query(
       collection(db, 'reviews'),
-      where('doctorId', '==', doctor.id)
+      where('doctorId', '==', doctor.id),
+      where('status', '==', 'approved')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -67,6 +68,7 @@ export default function DoctorDetailsModal({ doctor, isOpen, onClose }: DoctorDe
       });
       setNewComment('');
       setNewRating(5);
+      alert("تم إرسال تقييمك بنجاح. سيتم عرضه بعد مراجعته من قبل الإدارة.");
     } catch (error) {
       console.error("Error adding review", error);
       alert("حدث خطأ أثناء إضافة التقييم.");

@@ -24,7 +24,8 @@ export default function DoctorCard({ doctor, onClick, index }: DoctorCardProps) 
 
     const q = query(
       collection(db, 'reviews'),
-      where('doctorId', '==', doctor.id)
+      where('doctorId', '==', doctor.id),
+      where('status', '==', 'approved')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {

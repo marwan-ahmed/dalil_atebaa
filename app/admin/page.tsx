@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/firebase';
 import { collection, query, onSnapshot, orderBy, writeBatch, doc } from 'firebase/firestore';
-import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
+import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType, Review, updateReviewStatus, deleteReview } from '@/lib/firebase-utils';
 import { onAuthStateChanged } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone, MessageSquare, Star } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { normalizeSpecialty, STANDARD_SPECIALTIES } from '@/lib/specialties';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
@@ -15,11 +15,12 @@ import VideoPreviewModal from '@/components/VideoPreviewModal';
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
+  const [reviewsList, setReviewsList] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'doctors' | 'users'>('doctors');
+  const [activeTab, setActiveTab] = useState<'doctors' | 'users' | 'reviews'>('doctors');
   
   // New states for bulk delete and edit
   const [selectedDoctors, setSelectedDoctors] = useState<Set<string>>(new Set());
@@ -94,9 +95,29 @@ export default function AdminDashboard() {
       console.error("Error fetching users:", error);
     });
 
+    // Fetch Reviews
+    const rQuery = query(collection(db, 'reviews'));
+    const rUnsubscribe = onSnapshot(rQuery, (snapshot) => {
+      const reviewsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Review[];
+      
+      reviewsData.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || 0;
+        const timeB = b.createdAt?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+      
+      setReviewsList(reviewsData);
+    }, (error: any) => {
+      console.error("Error fetching reviews:", error);
+    });
+
     return () => {
       unsubscribe();
       uUnsubscribe();
+      rUnsubscribe();
     };
   }, [isAdmin]);
 
@@ -115,6 +136,8 @@ export default function AdminDashboard() {
   const pendingDoctors = doctors.filter(d => d.status === 'pending');
   const approvedDoctors = doctors.filter(d => d.status === 'approved');
   const rejectedDoctors = doctors.filter(d => d.status === 'rejected');
+
+  const pendingReviews = reviewsList.filter(r => r.status === 'pending');
 
   const chartData = [
     { name: 'مقبول', value: approvedDoctors.length, color: '#10b981' },
@@ -229,6 +252,32 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleApproveReview = async (id: string) => {
+    try {
+      await updateReviewStatus(id, 'approved');
+    } catch (error) {
+      alert("حدث خطأ أثناء قبول التقييم");
+    }
+  };
+
+  const handleRejectReview = async (id: string) => {
+    try {
+      await updateReviewStatus(id, 'rejected');
+    } catch (error) {
+      alert("حدث خطأ أثناء رفض التقييم");
+    }
+  };
+
+  const handleDeleteReview = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا التقييم؟')) {
+      try {
+        await deleteReview(id);
+      } catch (error) {
+        alert("حدث خطأ أثناء حذف التقييم");
+      }
+    }
+  };
+
   const handleBulkImport = async () => {
     if (!bulkText.trim()) return;
     if (!auth.currentUser) return;
@@ -319,6 +368,20 @@ export default function AdminDashboard() {
               }`}
             >
               المستخدمين
+            </button>
+            <button
+              onClick={() => setActiveTab('reviews')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'reviews' 
+                  ? 'bg-dark-900 text-gold-400 shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              التقييمات {pendingReviews.length > 0 && (
+                <span className="mr-1 bg-gold-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingReviews.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -593,7 +656,7 @@ export default function AdminDashboard() {
           </div>
           </div>
           </>
-        ) : (
+        ) : activeTab === 'users' ? (
           <div className="glass-panel rounded-2xl overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <h2 className="text-xl font-bold text-white">سجل المستخدمين</h2>
@@ -653,6 +716,104 @@ export default function AdminDashboard() {
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="glass-panel rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-wrap gap-4">
+               <div>
+                <h2 className="text-xl font-bold text-white">مراجعة التقييمات</h2>
+                <p className="text-sm text-gray-400">إجمالي المراجعات: {reviewsList.length}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead className="bg-dark-800/50 text-gray-400 text-sm">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">المستخدم</th>
+                    <th className="px-6 py-4 font-medium">الطبيب</th>
+                    <th className="px-6 py-4 font-medium">التقييم</th>
+                    <th className="px-6 py-4 font-medium">التعليق</th>
+                    <th className="px-6 py-4 font-medium text-center">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {reviewsList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        لا توجد مراجعات حالياً
+                      </td>
+                    </tr>
+                  ) : (
+                    reviewsList.map((review) => {
+                      const doctor = doctors.find(d => d.id === review.doctorId);
+                      return (
+                        <tr key={review.id} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-200">{review.userName}</div>
+                            {review.createdAt && (
+                              <div className="text-xs text-gray-600">
+                                {new Date(review.createdAt?.seconds * 1000).toLocaleDateString('ar-IQ')}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gold-400">{doctor?.name || 'طبيب غير موجود'}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                             <div className="flex items-center gap-1 text-gold-500">
+                              <Star size={14} fill="currentColor" />
+                              <span className="font-bold">{review.rating}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-300 max-w-xs truncate" title={review.comment}>
+                              {review.comment}
+                            </p>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium mt-1 ${
+                              review.status === 'approved' ? 'bg-green-500/10 text-green-400' :
+                              review.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                              'bg-gold-500/10 text-gold-400'
+                            }`}>
+                              {review.status === 'approved' ? 'منشور' : review.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              {review.status !== 'approved' && (
+                                <button 
+                                  onClick={() => handleApproveReview(review.id!)}
+                                  className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors"
+                                  title="قبول ونشر"
+                                >
+                                  <CheckCircle size={18} />
+                                </button>
+                              )}
+                              {review.status !== 'rejected' && (
+                                <button 
+                                  onClick={() => handleRejectReview(review.id!)}
+                                  className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                                  title="رفض التقييم"
+                                >
+                                  <XCircle size={18} />
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleDeleteReview(review.id!)}
+                                className="p-1.5 rounded-lg bg-gray-500/10 text-gray-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                title="حذف نهائي"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

@@ -12,7 +12,6 @@ function Counter({ value, label, icon: Icon, delay }: { value: number, label: st
 
   useEffect(() => {
     if (value === 0) {
-      setCount(0);
       return;
     }
     
@@ -68,7 +67,10 @@ export default function LiveStats() {
           where('status', '==', 'approved')
         );
         
-        const reviewsQuery = collection(db, 'reviews');
+        const reviewsQuery = query(
+          collection(db, 'reviews'),
+          where('status', '==', 'approved')
+        );
 
         const [approvedDocsSnap, reviewsSnap] = await Promise.all([
           getDocs(approvedQuery),

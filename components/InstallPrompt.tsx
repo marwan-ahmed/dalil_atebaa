@@ -5,24 +5,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Download, Share, PlusSquare } from 'lucide-react';
 
 export default function InstallPrompt() {
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const [isIOS, setIsIOS] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+  });
+  const [isStandalone, setIsStandalone] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           (window.navigator as any).standalone || 
+           document.referrer.includes('android-app://');
+  });
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
   useEffect(() => {
-    // Check if the app is already installed (running in standalone mode)
-    const isAppStandalone = window.matchMedia('(display-mode: standalone)').matches || 
-                            (window.navigator as any).standalone || 
-                            document.referrer.includes('android-app://');
-    setIsStandalone(isAppStandalone);
-
-    if (isAppStandalone) return;
-
-    // Detect iOS device
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIOSDevice);
+    if (isStandalone) return;
 
     // Handle Android/Chrome install prompt event
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -101,7 +98,7 @@ export default function InstallPrompt() {
             <div className="flex-1">
               <h3 className="text-lg font-bold text-white mb-1">تثبيت التطبيق</h3>
               <p className="text-gray-300 text-sm mb-4 leading-relaxed">
-                أضف "دليل أطباء سامراء" لشاشتك الرئيسية للوصول السريع بدون إنترنت وبدون استهلاك مساحة.
+                أضف &quot;دليل أطباء سامراء&quot; لشاشتك الرئيسية للوصول السريع بدون إنترنت وبدون استهلاك مساحة.
               </p>
               
               {isIOS ? (
@@ -112,7 +109,7 @@ export default function InstallPrompt() {
                   </p>
                   <p className="flex items-center gap-3">
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-dark-700 text-xs font-bold">2</span>
-                    اختر "إضافة للشاشة الرئيسية" <PlusSquare size={18} className="text-gray-400 mr-auto" />
+                    اختر &quot;إضافة للشاشة الرئيسية&quot; <PlusSquare size={18} className="text-gray-400 mr-auto" />
                   </p>
                 </div>
               ) : (
