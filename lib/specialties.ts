@@ -10,6 +10,8 @@ export const STANDARD_SPECIALTIES = [
   'أنف وأذن وحنجرة',
   'سونار وأشعة',
   'عظام ومفاصل (كسور)',
+  'طب المفاصل والروماتيزم',
+  'جراحة العظام والكسور',
   'مسالك بولية',
   'أمراض دم',
   'أورام وغدد',
@@ -31,7 +33,8 @@ export function normalizeSpecialty(raw: string): string {
   if (normalized.includes('نسائ') || normalized.includes('توليد')) return 'نسائية وتوليد';
   if (normalized.includes('جملهعصب') || normalized.includes('عصبى') || normalized.includes('عصبي')) return 'جملة عصبية';
   if (normalized.includes('انف') || normalized.includes('اذن') || normalized.includes('حنجر')) return 'أنف وأذن وحنجرة';
-  if (normalized.includes('كسور') || normalized.includes('مفاصل') || normalized.includes('عظام')) return 'عظام ومفاصل (كسور)';
+  if (normalized.includes('روماتيزم') || normalized.includes('مفاصل')) return 'طب المفاصل والروماتيزم';
+  if (normalized.includes('كسور') || normalized.includes('عظام')) return 'جراحة العظام والكسور';
   if (normalized.includes('سونار') || normalized.includes('اشعه') || normalized.includes('اشعة')) return 'سونار وأشعة';
   if (normalized.includes('جراح')) return 'جراحة عامة';
   if (normalized.includes('بولي') || normalized.includes('كلى')) return 'مسالك بولية';
