@@ -7,7 +7,7 @@ import { collection, query, onSnapshot, orderBy, writeBatch, doc, serverTimestam
 import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType, Review, updateReviewStatus, deleteReview, Specialty, addSpecialty, updateSpecialty, deleteSpecialty } from '@/lib/firebase-utils';
 import { onAuthStateChanged } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone, MessageSquare, Star, Settings, Plus, LayoutGrid } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone, MessageSquare, Star, Settings, Plus, LayoutGrid, Search, Filter, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { normalizeSpecialty } from '@/lib/specialties';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
@@ -37,6 +37,12 @@ export default function AdminDashboard() {
   const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null);
   const [editForm, setEditForm] = useState({ name: '', specialty: '', phone: '', address: '', category: 'doctor' as any, workingHours: '' });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  
+  // Filtering and Search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'doctor' | 'pharmacy' | 'lab' | 'nursing'>('all');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Video Modal State
   const [videoDoctor, setVideoDoctor] = useState<Doctor | null>(null);
@@ -147,6 +153,47 @@ export default function AdminDashboard() {
   if (isAdmin === false) {
     return null; // Will redirect
   }
+
+  const filteredDoctors = doctors.filter(doc => {
+    // Search
+    const query = searchQuery.toLowerCase();
+    const matchesSearch = doc.name.toLowerCase().includes(query) || 
+                          doc.phone.includes(query) || 
+                          (doc.specialty && doc.specialty.toLowerCase().includes(query));
+    
+    // Status
+    const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
+    
+    // Category
+    const docCategory = doc.category || 'doctor';
+    const matchesCategory = categoryFilter === 'all' || docCategory === categoryFilter;
+
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
+
+  const exportToCSV = () => {
+    // UTF-8 BOM for Excel to read Arabic characters properly
+    const BOM = '\uFEFF';
+    
+    const headers = ['الاسم', 'التخصص', 'الفئة', 'رقم الهاتف', 'العنوان', 'ساعات العمل', 'الحالة', 'أضيف بواسطة'];
+    const csvContent = filteredDoctors.map(d => {
+      const category = d.category === 'pharmacy' ? 'صيدلية' : d.category === 'lab' ? 'مختبر' : d.category === 'nursing' ? 'تمريض' : 'طبيب';
+      const status = d.status === 'approved' ? 'مقبول' : d.status === 'pending' ? 'مراجعة' : 'مرفوض';
+      // wrap strings in quotes to handle commas
+      return `"${d.name}","${d.specialty || ''}","${category}","${d.phone}","${d.address || ''}","${d.workingHours || ''}","${status}","${d.addedByName || d.addedByEmail || ''}"`;
+    });
+    
+    const finalCSV = BOM + headers.join(',') + '\n' + csvContent.join('\n');
+    const blob = new Blob([finalCSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `doctors_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const chartData = [
     { name: 'مقبول', value: approvedDoctors.length, color: '#10b981' },
@@ -498,98 +545,150 @@ export default function AdminDashboard() {
 
         {activeTab === 'doctors' ? (
           <>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-blue-500">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 font-medium">إجمالي الأطباء</h3>
-              <Users className="text-blue-500" size={24} />
-            </div>
-            <p className="text-3xl font-bold text-white">{doctors.length}</p>
-          </div>
-          
-          <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-gold-500">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 font-medium">قيد المراجعة</h3>
-              <Clock className="text-gold-500" size={24} />
-            </div>
-            <p className="text-3xl font-bold text-white">{pendingDoctors.length}</p>
-          </div>
-          
-          <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-green-500">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 font-medium">الأطباء المعتمدين</h3>
-              <CheckCircle className="text-green-500" size={24} />
-            </div>
-            <p className="text-3xl font-bold text-white">{approvedDoctors.length}</p>
-          </div>
-          
-          <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-red-500">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-gray-400 font-medium">الطلبات المرفوضة</h3>
-              <XCircle className="text-red-500" size={24} />
-            </div>
-            <p className="text-3xl font-bold text-white">{rejectedDoctors.length}</p>
-          </div>
+        {/* Advanced Options Toggle */}
+        <div className="mb-6 flex justify-end">
+          <button
+            onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-gold-400 transition-colors"
+          >
+            <Settings size={16} />
+            <span>خيارات متقدمة</span>
+            {showAdvancedOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
         </div>
 
-        {/* Bulk Import Section */}
-        <div className="glass-panel rounded-2xl p-6 mb-8 border border-gold-500/20">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center">
-              <Upload className="text-gold-500" size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">استيراد الأطباء دفعة واحدة</h2>
-              <p className="text-sm text-gray-400">قم بلصق القائمة النصية هنا ليتم إضافتهم تلقائياً</p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <textarea
-              value={bulkText}
-              onChange={(e) => setBulkText(e.target.value)}
-              placeholder="مثال:&#10;07705779806 عبد توفيق/عيون&#10;07735901388 ابتسام محيي /نسائية"
-              className="w-full h-32 bg-dark-900 border border-white/10 rounded-xl p-4 text-gray-300 text-sm focus:outline-none focus:border-gold-500/50 custom-scrollbar"
-              dir="rtl"
-            />
-            <button
-              onClick={handleBulkImport}
-              disabled={isImporting || !bulkText.trim()}
-              className="px-6 py-3 bg-gradient-gold text-black font-bold rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        {/* Bulk Import Section (Hidden by default) */}
+        <AnimatePresence>
+          {showAdvancedOptions && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden mb-8"
             >
-              {isImporting ? (
-                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <FileText size={18} />
-              )}
-              <span>بدء الاستيراد</span>
-            </button>
-          </div>
-        </div>
+              <div className="glass-panel rounded-2xl p-6 border border-gold-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center">
+                    <Upload className="text-gold-500" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">استيراد الأطباء دفعة واحدة</h2>
+                    <p className="text-sm text-gray-400">هذه الميزة ثانوية وتستخدم لإضافة نصوص مجمعة بسرعة</p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <textarea
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder="مثال:&#10;07705779806 عبد توفيق/عيون&#10;07735901388 ابتسام محيي /نسائية"
+                    className="w-full h-32 bg-dark-900 border border-white/10 rounded-xl p-4 text-gray-300 text-sm focus:outline-none focus:border-gold-500/50 custom-scrollbar"
+                    dir="rtl"
+                  />
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={isImporting || !bulkText.trim()}
+                    className="px-6 py-3 bg-gradient-gold text-black font-bold rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isImporting ? (
+                      <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FileText size={18} />
+                    )}
+                    <span>بدء الاستيراد</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="w-full">
           {/* Main Table */}
-          <div className="lg:col-span-2 glass-panel rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between flex-wrap gap-4">
-              <h2 className="text-xl font-bold text-white">إدارة الطلبات</h2>
-              
-              {selectedDoctors.size > 0 && (
-                <button
-                  onClick={handleBulkDelete}
-                  disabled={isDeletingBulk}
-                  className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2 text-sm font-medium"
-                >
-                  {isDeletingBulk ? (
-                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Trash2 size={16} />
+          <div className="glass-panel rounded-2xl overflow-hidden flex flex-col w-full">
+            <div className="p-6 border-b border-white/5 flex flex-col gap-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <h2 className="text-xl font-bold text-white">إدارة الطلبات</h2>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={exportToCSV}
+                    className="px-4 py-2 bg-dark-800 border border-white/10 text-gray-300 rounded-lg hover:bg-dark-700 hover:text-white transition-colors flex items-center gap-2 text-sm"
+                    title="تصدير النتائج إلى CSV"
+                  >
+                    <Download size={16} />
+                    <span>تصدير CSV</span>
+                  </button>
+
+                  {selectedDoctors.size > 0 && (
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={isDeletingBulk}
+                      className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      {isDeletingBulk ? (
+                        <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                      حذف ({selectedDoctors.size})
+                    </button>
                   )}
-                  حذف المحدد ({selectedDoctors.size})
-                </button>
-              )}
+                </div>
+              </div>
+
+              {/* Toolbar: Search and Filters */}
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <Search size={16} className="text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-dark-900 border border-white/10 rounded-lg pr-10 pl-4 py-2 text-sm text-white focus:outline-none focus:border-gold-500/50"
+                    placeholder="بحث عن اسم، تخصص، أو رقم..."
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2 min-w-[240px]">
+                  <div className="relative flex-1">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                      className="w-full bg-dark-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold-500/50 appearance-none"
+                    >
+                      <option value="all">كل الحالات</option>
+                      <option value="approved">مقبول</option>
+                      <option value="pending">قيد المراجعة</option>
+                      <option value="rejected">مرفوض</option>
+                    </select>
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <ChevronDown size={14} className="text-gray-400" />
+                    </div>
+                  </div>
+
+                  <div className="relative flex-1">
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value as any)}
+                      className="w-full bg-dark-900 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-gold-500/50 appearance-none"
+                    >
+                      <option value="all">الكل</option>
+                      <option value="doctor">أطباء</option>
+                      <option value="pharmacy">صيدليات</option>
+                      <option value="lab">مختبرات</option>
+                      <option value="nursing">تمريض</option>
+                    </select>
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <ChevronDown size={14} className="text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto flex-1">
               <table className="w-full text-right">
                 <thead className="bg-dark-800/50 text-gray-400 text-sm">
                   <tr>
@@ -597,8 +696,11 @@ export default function AdminDashboard() {
                       <input 
                         type="checkbox" 
                         className="rounded border-gray-600 bg-dark-900 text-gold-500 focus:ring-gold-500/50"
-                        checked={doctors.length > 0 && selectedDoctors.size === doctors.length}
-                        onChange={handleSelectAll}
+                        checked={filteredDoctors.length > 0 && selectedDoctors.size === filteredDoctors.length}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedDoctors(new Set(filteredDoctors.map(d => d.id!)));
+                          else setSelectedDoctors(new Set());
+                        }}
                       />
                     </th>
                     <th className="px-6 py-4 font-medium">اسم الطبيب</th>
@@ -609,14 +711,16 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {doctors.length === 0 ? (
+                  {filteredDoctors.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                        لا يوجد أطباء في قاعدة البيانات
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        {searchQuery || statusFilter !== 'all' || categoryFilter !== 'all' 
+                          ? 'لم يتم العثور على نتائج تطابق هذا البحث' 
+                          : 'لا يوجد أطباء في قاعدة البيانات'}
                       </td>
                     </tr>
                   ) : (
-                    doctors.map((doctor) => (
+                    filteredDoctors.map((doctor) => (
                       <tr key={doctor.id} className={`hover:bg-white/[0.02] transition-colors ${selectedDoctors.has(doctor.id!) ? 'bg-gold-500/5' : ''}`}>
                         <td className="px-6 py-4">
                           <input 
@@ -727,9 +831,12 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        </div>
 
-          {/* Charts Sidebar */}
-          <div className="glass-panel rounded-2xl p-6 flex flex-col">
+        {/* Bottom Stats Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+          {/* Charts Area */}
+          <div className="lg:col-span-1 glass-panel rounded-2xl p-6 flex flex-col">
             <h2 className="text-xl font-bold text-white mb-6">إحصائيات الحالات</h2>
             
             <div className="flex-1 min-h-[300px]">
@@ -760,11 +867,46 @@ export default function AdminDashboard() {
             <div className="mt-6 p-4 bg-dark-800/50 rounded-xl border border-gold-500/20 flex items-start gap-3">
               <ShieldAlert className="text-gold-500 shrink-0" size={20} />
               <p className="text-sm text-gray-400 leading-relaxed">
-                يجب مراجعة بيانات الأطباء بدقة قبل قبولها لضمان جودة وموثوقية الدليل للمستخدمين.
+                يجب مراجعة بيانات الأطباء بدقة قبل قبولها.
               </p>
             </div>
           </div>
+
+          {/* Stats Cards Area */}
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-blue-500 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 font-medium text-lg">إجمالي الأطباء</h3>
+                <Users className="text-blue-500" size={28} />
+              </div>
+              <p className="text-4xl font-bold text-white">{doctors.length}</p>
+            </div>
+            
+            <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-gold-500 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 font-medium text-lg">قيد المراجعة</h3>
+                <Clock className="text-gold-500" size={28} />
+              </div>
+              <p className="text-4xl font-bold text-white">{pendingDoctors.length}</p>
+            </div>
+            
+            <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-green-500 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 font-medium text-lg">الأطباء المعتمدين</h3>
+                <CheckCircle className="text-green-500" size={28} />
+              </div>
+              <p className="text-4xl font-bold text-white">{approvedDoctors.length}</p>
+            </div>
+            
+            <div className="glass-panel rounded-2xl p-6 border-l-4 border-l-red-500 flex flex-col justify-center">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-gray-400 font-medium text-lg">الطلبات المرفوضة</h3>
+                <XCircle className="text-red-500" size={28} />
+              </div>
+              <p className="text-4xl font-bold text-white">{rejectedDoctors.length}</p>
+            </div>
           </div>
+        </div>
           </>
         ) : activeTab === 'users' ? (
           <div className="glass-panel rounded-2xl overflow-hidden">
