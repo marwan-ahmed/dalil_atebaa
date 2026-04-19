@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { addDoctor } from '@/lib/firebase-utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, CheckCircle2 } from 'lucide-react';
 import LocationPickerWrapper from './LocationPickerWrapper';
-import { STANDARD_SPECIALTIES } from '@/lib/specialties';
+import { useSpecialties } from '@/hooks/useSpecialties';
 
 interface AddDoctorModalProps {
   isOpen: boolean;
@@ -13,9 +13,10 @@ interface AddDoctorModalProps {
 }
 
 export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps) {
+  const { specialties } = useSpecialties();
   const [formData, setFormData] = useState({
     name: '',
-    specialty: STANDARD_SPECIALTIES[0],
+    specialty: '',
     address: '',
     phone: '',
     category: 'doctor' as 'doctor' | 'pharmacy' | 'lab' | 'nursing',
@@ -26,6 +27,12 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (specialties.length > 0 && !formData.specialty) {
+      setFormData(prev => ({ ...prev, specialty: specialties[0].name }));
+    }
+  }, [specialties, formData.specialty]);
 
   if (!isOpen) return null;
 
@@ -39,7 +46,7 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
       setSuccess(true);
       setTimeout(() => {
         setSuccess(false);
-        setFormData({ name: '', specialty: STANDARD_SPECIALTIES[0], address: '', phone: '', category: 'doctor', workingHours: '', lat: undefined, lng: undefined });
+        setFormData({ name: '', specialty: specialties[0]?.name || '', address: '', phone: '', category: 'doctor', workingHours: '', lat: undefined, lng: undefined });
         onClose();
       }, 2000);
     } catch (err: any) {
@@ -101,7 +108,7 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => setFormData({...formData, category: cat.id as any, specialty: cat.id === 'doctor' ? STANDARD_SPECIALTIES[0] : cat.label})}
+                        onClick={() => setFormData({...formData, category: cat.id as any, specialty: cat.id === 'doctor' ? (specialties[0]?.name || '') : cat.label})}
                         className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
                           formData.category === cat.id 
                             ? 'bg-gold-500/20 border-gold-500 text-gold-400' 
@@ -135,8 +142,8 @@ export default function AddDoctorModal({ isOpen, onClose }: AddDoctorModalProps)
                       onChange={(e) => setFormData({...formData, specialty: e.target.value})}
                       className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all appearance-none"
                     >
-                      {STANDARD_SPECIALTIES.map(spec => (
-                        <option key={spec} value={spec}>{spec}</option>
+                      {specialties.map(spec => (
+                        <option key={spec.id} value={spec.name}>{spec.name}</option>
                       ))}
                     </select>
                   </div>

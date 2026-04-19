@@ -3,24 +3,33 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth, db } from '@/firebase';
-import { collection, query, onSnapshot, orderBy, writeBatch, doc } from 'firebase/firestore';
-import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType, Review, updateReviewStatus, deleteReview } from '@/lib/firebase-utils';
+import { collection, query, onSnapshot, orderBy, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
+import { Doctor, updateDoctorStatus, deleteDoctor, updateDoctorDetails, checkIsAdmin, handleFirestoreError, OperationType, Review, updateReviewStatus, deleteReview, Specialty, addSpecialty, updateSpecialty, deleteSpecialty } from '@/lib/firebase-utils';
 import { onAuthStateChanged } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone, MessageSquare, Star } from 'lucide-react';
+import { CheckCircle, XCircle, Trash2, Clock, Users, Activity, ShieldAlert, Upload, FileText, Edit, X, User as UserIcon, MapPin, MonitorSmartphone, MessageSquare, Star, Settings, Plus, LayoutGrid } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { normalizeSpecialty, STANDARD_SPECIALTIES } from '@/lib/specialties';
+import { normalizeSpecialty } from '@/lib/specialties';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
+import { useSpecialties } from '@/hooks/useSpecialties';
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [usersList, setUsersList] = useState<any[]>([]);
   const [reviewsList, setReviewsList] = useState<Review[]>([]);
+  const { specialties, loading: loadingSpecialties } = useSpecialties();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'doctors' | 'users' | 'reviews'>('doctors');
+  const [activeTab, setActiveTab] = useState<'doctors' | 'users' | 'reviews' | 'specialties'>('doctors');
+  
+  // New specialties states
+  const [newSpecialtyName, setNewSpecialtyName] = useState('');
+  const [isAddingSpecialty, setIsAddingSpecialty] = useState(false);
+  const [editingSpecialty, setEditingSpecialty] = useState<Specialty | null>(null);
+  const [editSpecialtyName, setEditSpecialtyName] = useState('');
+  const [isSyncingSpecialties, setIsSyncingSpecialties] = useState(false);
   
   // New states for bulk delete and edit
   const [selectedDoctors, setSelectedDoctors] = useState<Set<string>>(new Set());
@@ -52,11 +61,11 @@ export default function AdminDashboard() {
     return () => unsubscribeAuth();
   }, [router]);
 
+  // Store all data fetching in root so it's always available across tabs
   useEffect(() => {
     if (isAdmin !== true) return;
 
     const q = query(collection(db, 'doctors'));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docsData = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -121,7 +130,13 @@ export default function AdminDashboard() {
     };
   }, [isAdmin]);
 
-  if (isAdmin === null || loading) {
+  // Make sure we load the initial data even if loading
+  const pendingDoctors = doctors.filter(d => d.status === 'pending');
+  const approvedDoctors = doctors.filter(d => d.status === 'approved');
+  const rejectedDoctors = doctors.filter(d => d.status === 'rejected');
+  const pendingReviews = reviewsList.filter(r => r.status === 'pending');
+
+  if (isAdmin === null || (loading && doctors.length === 0)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark-950">
         <div className="w-16 h-16 border-4 border-gold-500/20 border-t-gold-500 rounded-full animate-spin"></div>
@@ -132,12 +147,6 @@ export default function AdminDashboard() {
   if (isAdmin === false) {
     return null; // Will redirect
   }
-
-  const pendingDoctors = doctors.filter(d => d.status === 'pending');
-  const approvedDoctors = doctors.filter(d => d.status === 'approved');
-  const rejectedDoctors = doctors.filter(d => d.status === 'rejected');
-
-  const pendingReviews = reviewsList.filter(r => r.status === 'pending');
 
   const chartData = [
     { name: 'مقبول', value: approvedDoctors.length, color: '#10b981' },
@@ -339,6 +348,97 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleAddSpecialty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSpecialtyName.trim()) return;
+    
+    setIsAddingSpecialty(true);
+    try {
+      const order = specialties.length > 0 ? Math.max(...specialties.map(s => s.order)) + 1 : 0;
+      await addSpecialty(newSpecialtyName.trim(), order);
+      setNewSpecialtyName('');
+    } catch (error) {
+      alert("حدث خطأ أثناء إضافة التخصص");
+    } finally {
+      setIsAddingSpecialty(false);
+    }
+  };
+
+  const handleUpdateSpecialty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSpecialty?.id || !editSpecialtyName.trim()) return;
+    
+    try {
+      await updateSpecialty(editingSpecialty.id, { name: editSpecialtyName.trim() });
+      setEditingSpecialty(null);
+    } catch (error) {
+      alert("حدث خطأ أثناء تحديث التخصص");
+    }
+  };
+
+  const handleDeleteSpecialty = async (id: string) => {
+    if (confirm('هل أنت متأكد من حذف هذا التخصص؟ قد يؤثر ذلك على عرض الأطباء المرتبطين به.')) {
+      try {
+        await deleteSpecialty(id);
+      } catch (error) {
+        alert("حدث خطأ أثناء حذف التخصص");
+      }
+    }
+  };
+
+  const handleSyncOldSpecialties = async () => {
+    setIsSyncingSpecialties(true);
+    try {
+      if (doctors.length === 0) {
+        alert('لم يتم تحميل بيانات الأطباء بعد، أو لا يوجد أطباء في النظام.');
+        setIsSyncingSpecialties(false);
+        return;
+      }
+
+      const oldSpecialties = new Set<string>();
+      doctors.forEach(doctor => {
+        if ((doctor.category === 'doctor' || !doctor.category) && doctor.specialty && doctor.specialty.trim() !== '') {
+          // Add the string value directly to handle primitive checking correctly
+          oldSpecialties.add(String(doctor.specialty).trim());
+        }
+      });
+
+      const existingNames = new Set(specialties.map(s => String(s.name).trim()));
+      const missing = Array.from(oldSpecialties).filter(s => !existingNames.has(s));
+
+      if (missing.length === 0) {
+        alert('جميع تخصصات الأطباء الحاليين موجودة بالفعل في القائمة.');
+        setIsSyncingSpecialties(false);
+        return;
+      }
+
+      if (!confirm(`تم العثور على ${missing.length} تخصص غير موجود في القائمة:\n\n${missing.join('، ')}\n\nهل تريد إضافتها الآن؟`)) {
+        setIsSyncingSpecialties(false);
+        return;
+      }
+
+      const batch = writeBatch(db);
+      let order = specialties.length > 0 ? Math.max(...specialties.map(spec => Number(spec.order) || 0)) + 1 : 0;
+      
+      missing.forEach(specName => {
+        const docRef = doc(collection(db, 'specialties'));
+        batch.set(docRef, {
+          name: specName,
+          order: order++,
+          createdAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      alert(`تمت المزامنة بنجاح! تم إضافة ${missing.length} تخصص جديد.`);
+    } catch (error: any) {
+      console.error("Error syncing specialties:", error);
+      alert(`حدث خطأ أثناء المزامنة: ${error?.message || "خطأ غير معروف"}`);
+    } finally {
+      setIsSyncingSpecialties(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-dark-950">
       <main className="flex-1 p-6 max-w-7xl mx-auto w-full pb-24 md:pb-6">
@@ -382,6 +482,16 @@ export default function AdminDashboard() {
                   {pendingReviews.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab('specialties')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'specialties' 
+                  ? 'bg-dark-900 text-gold-400 shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              التخصصات
             </button>
           </div>
         </div>
@@ -721,7 +831,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'reviews' ? (
           <div className="glass-panel rounded-2xl overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center justify-between flex-wrap gap-4">
                <div>
@@ -819,6 +929,106 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="glass-panel rounded-2xl p-6 border border-gold-500/20">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <h2 className="text-xl font-bold text-white">إضافة تخصص جديد</h2>
+                <button
+                  onClick={handleSyncOldSpecialties}
+                  type="button"
+                  disabled={isSyncingSpecialties}
+                  className="px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl hover:bg-blue-500/20 transition-all text-sm flex items-center gap-2 justify-center disabled:opacity-50"
+                >
+                  {isSyncingSpecialties ? (
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Activity size={16} />
+                  )}
+                  <span>مزامنة التخصصات القديمة</span>
+                </button>
+              </div>
+              <form onSubmit={handleAddSpecialty} className="flex gap-4">
+                <input
+                  type="text"
+                  value={newSpecialtyName}
+                  onChange={(e) => setNewSpecialtyName(e.target.value)}
+                  placeholder="اسم التخصص (مثلاً: قلبية)"
+                  className="flex-1 bg-dark-900 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-gold-500/50"
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={isAddingSpecialty || !newSpecialtyName.trim()}
+                  className="px-6 py-2.5 bg-gradient-gold text-black font-bold rounded-xl hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isAddingSpecialty ? (
+                    <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Plus size={18} />
+                  )}
+                  <span>إضافة</span>
+                </button>
+              </form>
+            </div>
+
+            <div className="glass-panel rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">قائمة التخصصات</h2>
+                <span className="text-sm text-gray-400">الإجمالي: {specialties.length}</span>
+              </div>
+              
+              <div className="divide-y divide-white/5">
+                {specialties.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">لا توجد تخصصات مضافة</div>
+                ) : (
+                  specialties.map((spec) => (
+                    <div key={spec.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                      {editingSpecialty?.id === spec.id ? (
+                        <form onSubmit={handleUpdateSpecialty} className="flex-1 flex gap-3">
+                          <input
+                            type="text"
+                            value={editSpecialtyName}
+                            onChange={(e) => setEditSpecialtyName(e.target.value)}
+                            className="flex-1 bg-dark-900 border border-gold-500/50 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none"
+                            autoFocus
+                          />
+                          <button type="submit" className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg"><CheckCircle size={18} /></button>
+                          <button type="button" onClick={() => setEditingSpecialty(null)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg"><X size={18} /></button>
+                        </form>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-dark-800 border border-white/5 flex items-center justify-center text-xs text-gray-400 font-mono">
+                              {spec.order}
+                            </div>
+                            <span className="font-medium text-gray-200">{spec.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingSpecialty(spec);
+                                setEditSpecialtyName(spec.name);
+                              }}
+                              className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSpecialty(spec.id!)}
+                              className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </main>
 
@@ -863,7 +1073,7 @@ export default function AdminDashboard() {
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => setEditForm({...editForm, category: cat.id as any, specialty: cat.id === 'doctor' ? STANDARD_SPECIALTIES[0] : cat.label})}
+                        onClick={() => setEditForm({...editForm, category: cat.id as any, specialty: cat.id === 'doctor' ? (specialties[0]?.name || '') : cat.label})}
                         className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
                           editForm.category === cat.id 
                             ? 'bg-gold-500/20 border-gold-500 text-gold-400' 
@@ -896,8 +1106,8 @@ export default function AdminDashboard() {
                       onChange={(e) => setEditForm(prev => ({ ...prev, specialty: e.target.value }))}
                       className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 appearance-none"
                     >
-                      {STANDARD_SPECIALTIES.map(spec => (
-                        <option key={spec} value={spec}>{spec}</option>
+                      {specialties.map(spec => (
+                        <option key={spec.id} value={spec.name}>{spec.name}</option>
                       ))}
                     </select>
                   </div>

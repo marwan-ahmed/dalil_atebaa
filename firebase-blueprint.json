@@ -41,6 +41,17 @@
         "createdAt": { "type": "timestamp", "description": "When the review was created" }
       },
       "required": ["doctorId", "userId", "userName", "rating", "comment", "status", "createdAt"]
+    },
+    "Specialty": {
+      "title": "Specialty",
+      "description": "A medical specialty for doctors",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the specialty in Arabic" },
+        "order": { "type": "number", "description": "Sorting order" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["name", "order", "createdAt"]
     }
   },
   "firestore": {
@@ -55,6 +66,10 @@
     "/reviews/{reviewId}": {
       "schema": { "$ref": "#/entities/Review" },
       "description": "Collection of doctor reviews"
+    },
+    "/specialties/{specialtyId}": {
+      "schema": { "$ref": "#/entities/Specialty" },
+      "description": "Collection of medical specialties"
     }
   }
 }

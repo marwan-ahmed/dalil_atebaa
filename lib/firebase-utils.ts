@@ -106,6 +106,13 @@ export interface Review {
   createdAt?: any;
 }
 
+export interface Specialty {
+  id?: string;
+  name: string;
+  order: number;
+  createdAt?: any;
+}
+
 export const addDoctor = async (doctorData: Omit<Doctor, 'id' | 'status' | 'addedBy' | 'createdAt' | 'addedByEmail' | 'addedByName'>) => {
   if (!auth.currentUser) throw new Error("يجب تسجيل الدخول لإضافة طبيب");
   
@@ -205,6 +212,39 @@ export const deleteReview = async (reviewId: string) => {
     return await deleteDoc(reviewRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `reviews/${reviewId}`);
+    throw error;
+  }
+};
+
+export const addSpecialty = async (name: string, order: number) => {
+  try {
+    return await addDoc(collection(db, 'specialties'), {
+      name,
+      order,
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'specialties');
+    throw error;
+  }
+};
+
+export const updateSpecialty = async (id: string, data: Partial<Omit<Specialty, 'id' | 'createdAt'>>) => {
+  const specialtyRef = doc(db, 'specialties', id);
+  try {
+    return await updateDoc(specialtyRef, data);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `specialties/${id}`);
+    throw error;
+  }
+};
+
+export const deleteSpecialty = async (id: string) => {
+  const specialtyRef = doc(db, 'specialties', id);
+  try {
+    return await deleteDoc(specialtyRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `specialties/${id}`);
     throw error;
   }
 };

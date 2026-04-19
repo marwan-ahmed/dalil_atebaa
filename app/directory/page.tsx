@@ -9,12 +9,13 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Doctor, handleFirestoreError, OperationType } from '@/lib/firebase-utils';
 import { Search, LayoutGrid, Map as MapIcon, Heart, Clock, ChevronLeft, Pill, FlaskConical, HeartPulse, Stethoscope } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { STANDARD_SPECIALTIES } from '@/lib/specialties';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed';
+import { useSpecialties } from '@/hooks/useSpecialties';
 
 export default function DirectoryPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const { specialties: dynamicSpecialties } = useSpecialties();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('جميع التخصصات');
@@ -72,15 +73,17 @@ export default function DirectoryPage() {
   };
 
   // Filter out specialties that have no doctors, but keep the standard order
-  const availableSpecialties = STANDARD_SPECIALTIES.filter(spec => 
+  const specialtyNames = dynamicSpecialties.map(s => s.name);
+  
+  const availableSpecialties = specialtyNames.filter(spec => 
     doctors.some(d => d.specialty === spec && (d.category === 'doctor' || !d.category))
   );
   
   // Add any non-standard specialties that might exist in the DB
   const otherSpecialties = Array.from(new Set(doctors.filter(d => d.category === 'doctor' || !d.category).map(d => d.specialty)))
-    .filter(spec => spec && !STANDARD_SPECIALTIES.includes(spec));
+    .filter(spec => spec && !specialtyNames.includes(spec));
 
-  const specialties = ['جميع التخصصات', ...availableSpecialties, ...otherSpecialties];
+  const specialtiesList = ['جميع التخصصات', ...availableSpecialties, ...otherSpecialties];
 
   const filteredDoctors = doctors.filter(doc => {
     if (showFavoritesOnly && !favorites.includes(doc.id!)) return false;
@@ -199,7 +202,7 @@ export default function DirectoryPage() {
                   onChange={(e) => setSelectedSpecialty(e.target.value)}
                   className="w-full bg-dark-800 border border-white/10 rounded-xl px-3 py-3 text-white text-xs sm:text-sm focus:outline-none focus:border-gold-500/50 appearance-none"
                 >
-                  {specialties.map(specialty => (
+                  {specialtiesList.map(specialty => (
                     <option key={specialty} value={specialty}>{specialty}</option>
                   ))}
                 </select>
@@ -238,7 +241,7 @@ export default function DirectoryPage() {
             {(selectedCategory === 'all' || selectedCategory === 'doctor') && (
               <div className="overflow-x-auto custom-scrollbar pb-2 max-w-4xl mx-auto">
                 <div className="flex items-center justify-center sm:justify-start gap-2 min-w-max px-2">
-                  {specialties.map(specialty => (
+                  {specialtiesList.map(specialty => (
                     <button
                       key={specialty}
                       onClick={() => setSelectedSpecialty(specialty)}
