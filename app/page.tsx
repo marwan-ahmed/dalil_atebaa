@@ -6,8 +6,29 @@ import { MapPin, Search, Heart, Target, Shield, CheckCircle, MessageCircle, Face
 import LiveStats from '@/components/LiveStats';
 
 export default function LandingPage() {
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'MedicalOrganization',
+    'name': 'دليل أطباء سامراء',
+    'description': 'الدليل الطبي الأول والوحيد لمدينة سامراء يجمع النخبة من الأطباء والعيادات والمختبرات الخاصة.',
+    'url': 'https://samarra-doctors.com',
+    'logo': 'https://samarra-doctors.com/icons/icon-512x512.png',
+    'address': {
+      '@type': 'PostalAddress',
+      'addressLocality': 'سامراء',
+      'addressRegion': 'صلاح الدين',
+      'addressCountry': 'IQ'
+    },
+    'keywords': 'أطباء سامراء, حجز اطباء سامراء, عيادات سامراء, دكتور سامراء'
+  };
+
   return (
-    <main className="flex-1 flex flex-col pb-24 md:pb-0 min-h-[calc(100vh-80px)]">
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <main className="flex-1 flex flex-col pb-24 md:pb-0 min-h-[calc(100vh-80px)]">
       {/* Hero Section */}
       <section className="relative w-full py-20 px-6 overflow-hidden flex flex-col justify-center min-h-[80vh]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gold-500/10 via-dark-900 to-dark-950" />
@@ -189,5 +210,6 @@ export default function LandingPage() {
         </div>
       </section>
     </main>
+    </>
   );
 }
