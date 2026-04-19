@@ -12,6 +12,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { normalizeSpecialty } from '@/lib/specialties';
 import VideoPreviewModal from '@/components/VideoPreviewModal';
 import { useSpecialties } from '@/hooks/useSpecialties';
+import { sendNotificationToUser, sendBroadcastNotification } from '@/app/actions/notify';
 
 export default function AdminDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -22,7 +23,7 @@ export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [bulkText, setBulkText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'doctors' | 'users' | 'reviews' | 'specialties'>('doctors');
+  const [activeTab, setActiveTab] = useState<'doctors' | 'users' | 'reviews' | 'specialties' | 'notifications'>('doctors');
   
   // New specialties states
   const [newSpecialtyName, setNewSpecialtyName] = useState('');
@@ -47,6 +48,12 @@ export default function AdminDashboard() {
   // Video Modal State
   const [videoDoctor, setVideoDoctor] = useState<Doctor | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+  // Notifications State
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
+  const [isSendingNotif, setIsSendingNotif] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const router = useRouter();
 
@@ -171,6 +178,28 @@ export default function AdminDashboard() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifBody.trim()) return;
+    
+    setIsSendingNotif(true);
+    setBroadcastResult(null);
+    try {
+      const result = await sendBroadcastNotification(notifTitle.trim(), notifBody.trim());
+      if (result.success) {
+        setBroadcastResult({ type: 'success', text: `تم الإرسال بنجاح لـ ${result.totalTokens} جهاز! (ناجح: ${result.successCount}، فاشل: ${result.failureCount})` });
+        setNotifTitle('');
+        setNotifBody('');
+      } else {
+        setBroadcastResult({ type: 'error', text: 'فشل الإرسال: ' + (result.message || result.error) });
+      }
+    } catch (error: any) {
+      setBroadcastResult({ type: 'error', text: "حدث خطأ غير متوقع: " + String(error) });
+    } finally {
+      setIsSendingNotif(false);
+    }
+  };
+
   const exportToCSV = () => {
     // UTF-8 BOM for Excel to read Arabic characters properly
     const BOM = '\uFEFF';
@@ -201,23 +230,41 @@ export default function AdminDashboard() {
     { name: 'مرفوض', value: rejectedDoctors.length, color: '#ef4444' },
   ];
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, addedByUserId?: string, type: 'doctor' | 'review' = 'doctor') => {
     try {
-      await updateDoctorStatus(id, 'approved');
+      if (type === 'doctor') {
+        await updateDoctorStatus(id, 'approved');
+        if (addedByUserId) {
+          await sendNotificationToUser(addedByUserId, 'تم الموافقة على اقتراحك!', 'تمت إضافة الطبيب أو الصيدلية التي قمت باقتراحها بنجاح إلى الدليل. شكراً لمساهمتك!');
+        }
+      } else {
+        await updateReviewStatus(id, 'approved');
+        if (addedByUserId) {
+          await sendNotificationToUser(addedByUserId, 'تم نشر تقييمك!', 'تمت الموافقة على تقييمك وهو الآن ظاهر للجميع. شكراً لمشاركتك رأيك!');
+        }
+      }
     } catch (error: any) {
-      console.error("Error approving doctor:", error?.message || String(error));
-      alert("حدث خطأ أثناء قبول الطبيب.");
-      throw error;
+      console.error("Error approving:", error?.message || String(error));
+      alert("حدث خطأ أثناء القبول.");
     }
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (id: string, addedByUserId?: string, type: 'doctor' | 'review' = 'doctor') => {
     try {
-      await updateDoctorStatus(id, 'rejected');
+      if (type === 'doctor') {
+        await updateDoctorStatus(id, 'rejected');
+        if (addedByUserId) {
+          await sendNotificationToUser(addedByUserId, 'حالة الاقتراح', 'عذراً، لم يتم قبول اقتراحك الأخير بعد المراجعة. نرجو التأكد من دقة البيانات مستقبلاً.');
+        }
+      } else {
+        await updateReviewStatus(id, 'rejected');
+        if (addedByUserId) {
+          await sendNotificationToUser(addedByUserId, 'تحديث بخصوص التقييم', 'عذراً، لم يتم قبول تقييمك لمخالفته شروط النشر أو لاحتوائه على معلومات غير دقيقة.');
+        }
+      }
     } catch (error: any) {
-      console.error("Error rejecting doctor:", error?.message || String(error));
-      alert("حدث خطأ أثناء رفض الطبيب.");
-      throw error;
+      console.error("Error rejecting:", error?.message || String(error));
+      alert("حدث خطأ أثناء الرفض.");
     }
   };
 
@@ -308,20 +355,14 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleApproveReview = async (id: string) => {
-    try {
-      await updateReviewStatus(id, 'approved');
-    } catch (error) {
-      alert("حدث خطأ أثناء قبول التقييم");
-    }
+  const handleApproveReview = async (id: string, userId: string) => {
+    // Re-use logic since we abstracted it
+    await handleApprove(id, userId, 'review');
   };
 
-  const handleRejectReview = async (id: string) => {
-    try {
-      await updateReviewStatus(id, 'rejected');
-    } catch (error) {
-      alert("حدث خطأ أثناء رفض التقييم");
-    }
+  const handleRejectReview = async (id: string, userId: string) => {
+    // Re-use logic since we abstracted it
+    await handleReject(id, userId, 'review');
   };
 
   const handleDeleteReview = async (id: string) => {
@@ -539,6 +580,16 @@ export default function AdminDashboard() {
               }`}
             >
               التخصصات
+            </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'notifications' 
+                  ? 'bg-dark-900 text-gold-400 shadow-md' 
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              الإشعارات الجماعية
             </button>
           </div>
         </div>
@@ -799,7 +850,7 @@ export default function AdminDashboard() {
                             </button>
                             {doctor.status !== 'approved' && (
                               <button 
-                                onClick={() => handleApprove(doctor.id!)}
+                                onClick={() => handleApprove(doctor.id!, doctor.addedBy, 'doctor')}
                                 className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors"
                                 title="قبول"
                               >
@@ -808,7 +859,7 @@ export default function AdminDashboard() {
                             )}
                             {doctor.status !== 'rejected' && (
                               <button 
-                                onClick={() => handleReject(doctor.id!)}
+                                onClick={() => handleReject(doctor.id!, doctor.addedBy, 'doctor')}
                                 className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
                                 title="رفض"
                               >
@@ -1038,7 +1089,7 @@ export default function AdminDashboard() {
                             <div className="flex items-center justify-center gap-2">
                               {review.status !== 'approved' && (
                                 <button 
-                                  onClick={() => handleApproveReview(review.id!)}
+                                  onClick={() => handleApproveReview(review.id!, review.userId)}
                                   className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 transition-colors"
                                   title="قبول ونشر"
                                 >
@@ -1047,7 +1098,7 @@ export default function AdminDashboard() {
                               )}
                               {review.status !== 'rejected' && (
                                 <button 
-                                  onClick={() => handleRejectReview(review.id!)}
+                                  onClick={() => handleRejectReview(review.id!, review.userId)}
                                   className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
                                   title="رفض التقييم"
                                 >
@@ -1071,7 +1122,7 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'specialties' ? (
           <div className="space-y-6">
             <div className="glass-panel rounded-2xl p-6 border border-gold-500/20">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
@@ -1168,6 +1219,109 @@ export default function AdminDashboard() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        
+        {activeTab === 'notifications' && (
+          <div className="max-w-3xl mx-auto">
+            <div className="glass-panel rounded-2xl p-8 border border-white/5 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+              
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold-500/20 to-gold-500/5 flex items-center justify-center border border-gold-500/20 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                  <Activity className="text-gold-500" size={28} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">لوحة الإرسال المباشر (Push)</h2>
+                  <p className="text-gray-400 text-sm">
+                    إرسال رسائل فورية لجميع الهواتف المتصلة بالدليل
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleSendBroadcast} className="space-y-6 relative">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">عنوان الإشعار</label>
+                  <input
+                    type="text"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    placeholder="مثال: خبر عاجل، انضمام طبيب جديد..."
+                    className="w-full bg-dark-950/50 border border-white/10 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all placeholder:text-gray-600"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">محتوى الإشعار</label>
+                  <textarea
+                    value={notifBody}
+                    onChange={(e) => setNotifBody(e.target.value)}
+                    placeholder="اكتب رسالتك وتفاصيل الإشعار هنا..."
+                    rows={4}
+                    className="w-full bg-dark-950/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/50 transition-all resize-none custom-scrollbar placeholder:text-gray-600"
+                    required
+                  />
+                </div>
+
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex gap-3 text-sm text-blue-300">
+                  <span className="text-xl shrink-0">💡</span>
+                  <p className="leading-relaxed">
+                    استخدم هذه الخاصية بحذر. كثرة الإشعارات قد تزعج المستخدم وتدفعه لإلغاء خاصية التنبيهات. استهدف الإعلانات الهامة فقط.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSendingNotif || !notifTitle.trim() || !notifBody.trim()}
+                  className="w-full py-4 bg-gradient-gold text-black font-bold rounded-xl hover:shadow-[0_0_20px_rgba(212,175,55,0.3)] transition-all disabled:opacity-50 disabled:hover:shadow-none flex items-center justify-center gap-2 text-lg active:scale-[0.99]"
+                >
+                  {isSendingNotif ? (
+                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Activity size={20} />
+                      إرسال الإشعار الآن
+                    </>
+                  )}
+                </button>
+                
+                {broadcastResult && (
+                  <div className={`p-4 rounded-xl text-center text-sm font-bold ${broadcastResult.type === 'success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                    {broadcastResult.text}
+                  </div>
+                )}
+              </form>
+            </div>
+            
+            <div className="mt-8 glass-panel rounded-2xl p-8 border border-white/5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-dark-800 flex items-center justify-center border border-white/10 shrink-0">
+                  <Clock className="text-gray-400" size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-white mb-2">النظام الآلي (CRON Job)</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed mb-4">
+                    يمكنك ربط الدليل بخدمة جدولة مهام خارجية مثل <b>cron-job.org</b> لإرسال رسائل صحية تثقيفية آلياً كل 24 ساعة.
+                  </p>
+                  
+                  <div className="bg-dark-950 p-4 rounded-xl border border-white/5 space-y-3">
+                    <div>
+                      <span className="text-xs text-gray-500 block mb-1">رابط الطلب (Webhook URL)</span>
+                      <code className="text-green-400 text-sm font-mono break-all select-all">
+                        https://samarra-doctors.com/api/cron/notify
+                      </code>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 block mb-1">الترويسة المطلوبة (Headers)</span>
+                      <code className="text-gold-400 text-sm font-mono block select-all">
+                        Authorization: Bearer CRON_SECRET
+                      </code>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

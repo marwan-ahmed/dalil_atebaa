@@ -3,6 +3,7 @@ import { Tajawal } from 'next/font/google';
 import Navbar from '@/components/Navbar';
 import FloatingShareButton from '@/components/FloatingShareButton';
 import InstallPrompt from '@/components/InstallPrompt';
+import NotificationManager from '@/components/NotificationManager';
 import './globals.css';
 
 const tajawal = Tajawal({
