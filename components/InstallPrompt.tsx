@@ -33,12 +33,10 @@ export default function InstallPrompt() {
     const visitCount = parseInt(localStorage.getItem('visitCount') || '0');
     const isDismissed = localStorage.getItem('installPromptDismissed') === 'true';
 
-    // Increment visit count
     localStorage.setItem('visitCount', (visitCount + 1).toString());
 
-    // Show prompt on the second visit (or later) if not dismissed
-    if (visitCount >= 1 && !isDismissed) {
-      // Delay showing the prompt slightly so it doesn't interrupt the user immediately
+    // Show prompt after 3s always if not dismissed
+    if (!isDismissed) {
       const timer = setTimeout(() => {
         setShowPrompt(true);
       }, 3000);
@@ -80,7 +78,7 @@ export default function InstallPrompt() {
           initial={{ opacity: 0, y: 50, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 50, scale: 0.9 }}
-          className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:w-96 z-[60] bg-dark-800/95 backdrop-blur-md border border-gold-500/30 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] p-5"
+          className="fixed bottom-28 left-4 right-4 md:bottom-6 md:right-auto md:left-6 md:w-96 z-[60] bg-dark-800/95 backdrop-blur-md border border-gold-500/30 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] p-5"
         >
           <button 
             onClick={handleDismiss}

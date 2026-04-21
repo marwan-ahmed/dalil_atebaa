@@ -50,6 +50,18 @@ export async function sendBroadcastNotification(title: string, body: string) {
       }
     });
 
+    // Also get tokens from anonymous_tokens collection
+    const anonTokensSnapshot = await adminDb.collection('anonymous_tokens').get();
+    anonTokensSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.token) {
+        allTokens.push(data.token);
+      }
+    });
+
+    // Remove duplicates
+    allTokens = Array.from(new Set(allTokens));
+
     if (allTokens.length === 0) {
       return { success: false, message: 'No devices registered for notifications.' };
     }
@@ -76,5 +88,20 @@ export async function sendBroadcastNotification(title: string, body: string) {
   } catch (error) {
     console.error('Error in broadcast:', error);
     return { success: false, error: String(error) };
+  }
+}
+
+export async function saveAnonymousToken(token: string) {
+  if (!token) return { success: false, message: 'No token' };
+  try {
+    // Save token as a document ID to avoid duplicates inherently
+    await adminDb.collection('anonymous_tokens').doc(token).set({
+      token,
+      createdAt: new Date().toISOString()
+    }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving anonymous token', error);
+    return { success: false, error };
   }
 }

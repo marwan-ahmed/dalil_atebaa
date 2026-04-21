@@ -7,29 +7,33 @@ import { doc, updateDoc, arrayUnion, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { BellRing } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { saveAnonymousToken } from '@/app/actions/notify';
 
 export default function NotificationManager() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    // Show prompt immediately for everyone if default
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        setShowPrompt(true);
+      } else if (Notification.permission === 'granted') {
+        // Prepare setup but we might need user object, handle in auth state
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser && typeof window !== 'undefined' && 'Notification' in window) {
-        if (Notification.permission === 'default') {
-          // Show our custom UI to ask for notification permission smoothly
-          setShowPrompt(true);
-        } else if (Notification.permission === 'granted') {
-          setupMessaging(currentUser);
-        }
-      } else {
-         setShowPrompt(false);
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        setupMessaging(currentUser);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
-  const setupMessaging = async (currentUser: User) => {
+  const setupMessaging = async (currentUser: User | null) => {
     try {
       const supported = await isSupported();
       if (!supported) return;
@@ -39,15 +43,18 @@ export default function NotificationManager() {
         vapidKey: 'BBv7j6KrVeukJ01R9Mqb7ZofnBv6mIzhWsujKTuYxcedLHejSbuEQpBFgCeyhkL7xd2UCEnNrg6kDoZRK_egAmo'
       });
       
-      if (token && currentUser) {
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userSnap = await getDoc(userRef);
-        // Save the token array if not exists
-        if (userSnap.exists()) {
-          await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+      if (token) {
+        if (currentUser) {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+          } else {
+            await setDoc(userRef, { role: 'user', fcmTokens: [token] });
+          }
         } else {
-          // Only if missing entirely
-          await setDoc(userRef, { role: 'user', fcmTokens: [token] });
+          // Send to our anonymous token tracker
+          await saveAnonymousToken(token);
         }
       }
       
@@ -69,7 +76,7 @@ export default function NotificationManager() {
   const handleEnableNotifications = async () => {
     try {
       const permission = await Notification.requestPermission();
-      if (permission === 'granted' && user) {
+      if (permission === 'granted') {
         await setupMessaging(user);
       }
       setShowPrompt(false);
@@ -95,7 +102,7 @@ export default function NotificationManager() {
             <h4 className="text-white font-bold">تفعيل الإشعارات</h4>
           </div>
           <p className="text-sm text-gray-400">
-            قم بتفعيل الإشعارات حتى نتمكن من إخبارك فور قبول الأطباء أو التقييمات التي تقترحها!
+            قم بتفعيل الإشعارات ليصلك كل جديد وتنبيهات فورية عند قبول ترشيحاتك أو تقييماتك للأطباء!
           </p>
           <div className="flex gap-2 mt-2">
             <button 
