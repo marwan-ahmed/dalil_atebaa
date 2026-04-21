@@ -71,5 +71,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    
+    match /anonymous_tokens/{tokenId} {
+      allow read: if isAdmin();
+      allow create: if true; // allow anyone to subscribe to notifications
+      allow update: if true;
+    }
   }
 }
