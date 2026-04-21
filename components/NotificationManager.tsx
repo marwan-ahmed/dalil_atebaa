@@ -14,14 +14,31 @@ export default function NotificationManager() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Show prompt immediately for everyone if default
+    let autoTimer: NodeJS.Timeout;
+
+    // 1- Automatic Prompts
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
-        setShowPrompt(true);
-      } else if (Notification.permission === 'granted') {
-        // Prepare setup but we might need user object, handle in auth state
+        autoTimer = setTimeout(() => {
+          setShowPrompt(true);
+        }, 1500); // delay a little bit to smooth out the UX
       }
     }
+
+    // 2- Manual Prompts 
+    const handleManualTrigger = () => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'default' || Notification.permission === 'denied') {
+          // If denied, they have to re-enable in browser settings, but we can still show our UI info
+          setShowPrompt(true);
+        } else if (Notification.permission === 'granted') {
+          alert('الإشعارات مفعلة بالفعل لديك!');
+        }
+      } else {
+        alert('متصفحك لا يدعم الإشعارات.');
+      }
+    };
+    window.addEventListener('trigger-notification-prompt', handleManualTrigger);
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -30,7 +47,11 @@ export default function NotificationManager() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (autoTimer) clearTimeout(autoTimer);
+      unsubscribe();
+      window.removeEventListener('trigger-notification-prompt', handleManualTrigger);
+    };
   }, []);
 
   const setupMessaging = async (currentUser: User | null) => {

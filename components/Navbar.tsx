@@ -7,15 +7,26 @@ import { auth, signInWithPopup, googleProvider, signOut, isConfigValid, db } fro
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { checkIsAdmin } from '@/lib/firebase-utils';
-import { LogIn, LogOut, Shield, User as UserIcon, PlusCircle, Home, Search } from 'lucide-react';
-import { motion } from 'motion/react';
+import { LogIn, LogOut, Shield, User as UserIcon, PlusCircle, Home, Search, Settings, BellRing, Download } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import AddDoctorModal from './AddDoctorModal';
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const pathname = usePathname();
+
+  const handleTriggerNotification = () => {
+    setIsSettingsOpen(false);
+    window.dispatchEvent(new Event('trigger-notification-prompt'));
+  };
+
+  const handleTriggerInstall = () => {
+    setIsSettingsOpen(false);
+    window.dispatchEvent(new Event('trigger-install-prompt'));
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -104,6 +115,48 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <button
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              className="p-2 rounded-full border border-gold-500/50 text-gold-400 hover:bg-gold-500/10 transition-colors"
+              title="الإعدادات المتقدمة"
+            >
+              <Settings size={20} />
+            </button>
+
+            <AnimatePresence>
+              {isSettingsOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsSettingsOpen(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute top-full left-0 mt-2 w-48 bg-dark-900 border border-gold-500/30 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col"
+                  >
+                    <button
+                      onClick={handleTriggerNotification}
+                      className="flex items-center gap-2 w-full text-right px-4 py-3 text-sm text-gray-200 hover:bg-gold-500/10 hover:text-gold-400 transition-colors border-b border-white/5"
+                    >
+                      <BellRing size={16} />
+                      تفعيل الإشعارات
+                    </button>
+                    <button
+                      onClick={handleTriggerInstall}
+                      className="flex items-center gap-2 w-full text-right px-4 py-3 text-sm text-gray-200 hover:bg-gold-500/10 hover:text-gold-400 transition-colors"
+                    >
+                      <Download size={16} />
+                      تثبيت التطبيق
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button 
             onClick={handleAddClick}
             className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-gold-500/50 text-gold-400 hover:bg-gold-500/10 transition-colors"

@@ -29,25 +29,35 @@ export default function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Visit count logic using localStorage
+    // 1- Automatic Prompts (Local Storage Visit Count check)
     const visitCount = parseInt(localStorage.getItem('visitCount') || '0');
     const isDismissed = localStorage.getItem('installPromptDismissed') === 'true';
 
     localStorage.setItem('visitCount', (visitCount + 1).toString());
 
-    // Show prompt after 3s always if not dismissed
+    let autoTimer: NodeJS.Timeout;
     if (!isDismissed) {
-      const timer = setTimeout(() => {
+      autoTimer = setTimeout(() => {
         setShowPrompt(true);
       }, 3000);
-      return () => {
-        clearTimeout(timer);
-        window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      };
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-  }, []);
+    // 2- Manual Prompts
+    const handleManualTrigger = () => {
+      if (!isStandalone) {
+        setShowPrompt(true);
+      } else {
+        alert('التطبيق مثبت بالفعل على جهازك!');
+      }
+    };
+    window.addEventListener('trigger-install-prompt', handleManualTrigger);
+
+    return () => {
+      if (autoTimer) clearTimeout(autoTimer);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('trigger-install-prompt', handleManualTrigger);
+    };
+  }, [isStandalone]);
 
   const handleInstall = async () => {
     if (deferredPrompt) {

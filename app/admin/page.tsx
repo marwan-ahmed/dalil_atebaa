@@ -1295,35 +1295,6 @@ export default function AdminDashboard() {
                 )}
               </form>
             </div>
-            
-            <div className="mt-8 glass-panel rounded-2xl p-8 border border-white/5">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-dark-800 flex items-center justify-center border border-white/10 shrink-0">
-                  <Clock className="text-gray-400" size={24} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-white mb-2">النظام الآلي (CRON Job)</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed mb-4">
-                    يمكنك ربط الدليل بخدمة جدولة مهام خارجية مثل <b>cron-job.org</b> لإرسال رسائل صحية تثقيفية آلياً كل 24 ساعة.
-                  </p>
-                  
-                  <div className="bg-dark-950 p-4 rounded-xl border border-white/5 space-y-3">
-                    <div>
-                      <span className="text-xs text-gray-500 block mb-1">رابط الطلب (Webhook URL)</span>
-                      <code className="text-green-400 text-sm font-mono break-all select-all">
-                        https://samarra-doctors.com/api/cron/notify
-                      </code>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500 block mb-1">الترويسة المطلوبة (Headers)</span>
-                      <code className="text-gold-400 text-sm font-mono block select-all">
-                        Authorization: Bearer CRON_SECRET
-                      </code>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </main>
