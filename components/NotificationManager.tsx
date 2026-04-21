@@ -27,11 +27,20 @@ export default function NotificationManager() {
     // 2- Manual Prompts 
     const handleManualTrigger = () => {
       if (typeof window !== 'undefined' && 'Notification' in window) {
-        if (Notification.permission === 'default' || Notification.permission === 'denied') {
-          // If denied, they have to re-enable in browser settings, but we can still show our UI info
-          setShowPrompt(true);
+        if (Notification.permission === 'default') {
+          // Trigger native prompt directly
+          Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+              setupMessaging(auth.currentUser);
+              alert('تم تفعيل الإشعارات بنجاح!');
+            }
+          });
+        } else if (Notification.permission === 'denied') {
+          alert('لقد قمت برفض الإشعارات مسبقاً. يرجى تفعيلها من إعدادات المتصفح (مربع القفل بجانب الرابط أعلى الصفحة) ثم المحاولة مجدداً.');
         } else if (Notification.permission === 'granted') {
           alert('الإشعارات مفعلة بالفعل لديك!');
+          // Attempt to setup messaging anyway in case the token was lost
+          setupMessaging(auth.currentUser);
         }
       } else {
         alert('متصفحك لا يدعم الإشعارات.');
