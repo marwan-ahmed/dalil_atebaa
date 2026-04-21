@@ -7,7 +7,6 @@ import { doc, updateDoc, arrayUnion, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { BellRing } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { saveAnonymousToken } from '@/app/actions/notify';
 
 export default function NotificationManager() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -79,8 +78,12 @@ export default function NotificationManager() {
             await setDoc(userRef, { role: 'user', fcmTokens: [token] });
           }
         } else {
-          // Send to our anonymous token tracker
-          await saveAnonymousToken(token);
+          // Send to our anonymous token tracker directly from the client
+          const tokenRef = doc(db, 'anonymous_tokens', token);
+          await setDoc(tokenRef, {
+            token: token,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
         }
       }
       
@@ -94,8 +97,9 @@ export default function NotificationManager() {
           });
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('FCM Setup failed:', error);
+      alert('فشل تفعيل الإشعارات تقنياً: ' + error?.message);
     }
   };
 
