@@ -60,9 +60,14 @@ export default function NotificationManager() {
       if (!supported) return;
       
       const messaging = getMessaging(app);
-      const token = await getToken(messaging, {
-        vapidKey: 'BBv7j6KrVeukJ01R9Mqb7ZofnBv6mIzhWsujKTuYxcedLHejSbuEQpBFgCeyhkL7xd2UCEnNrg6kDoZRK_egAmo'
-      });
+      
+      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+      if (!vapidKey) {
+        console.error('Missing NEXT_PUBLIC_FIREBASE_VAPID_KEY. Push notifications cannot be registered.');
+        return;
+      }
+
+      const token = await getToken(messaging, { vapidKey });
       
       if (token) {
         if (currentUser) {
