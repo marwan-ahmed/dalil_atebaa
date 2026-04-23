@@ -116,8 +116,13 @@ export interface Specialty {
 export const addDoctor = async (doctorData: Omit<Doctor, 'id' | 'status' | 'addedBy' | 'createdAt' | 'addedByEmail' | 'addedByName'>) => {
   if (!auth.currentUser) throw new Error("يجب تسجيل الدخول لإضافة طبيب");
   
+  // Clean up undefined values (like lat, lng if not provided)
+  const cleanedData = { ...doctorData };
+  if (cleanedData.lat === undefined) delete cleanedData.lat;
+  if (cleanedData.lng === undefined) delete cleanedData.lng;
+  
   const newDoctor: Doctor = {
-    ...doctorData,
+    ...cleanedData,
     status: 'pending',
     addedBy: auth.currentUser.uid,
     addedByEmail: auth.currentUser.email || 'غير معروف',
@@ -145,8 +150,12 @@ export const updateDoctorStatus = async (doctorId: string, status: 'approved' | 
 
 export const updateDoctorDetails = async (doctorId: string, data: Partial<Omit<Doctor, 'id' | 'addedBy' | 'createdAt'>>) => {
   const doctorRef = doc(db, 'doctors', doctorId);
+  const cleanedData = { ...data };
+  if (cleanedData.lat === undefined) delete cleanedData.lat;
+  if (cleanedData.lng === undefined) delete cleanedData.lng;
+  
   try {
-    return await updateDoc(doctorRef, data);
+    return await updateDoc(doctorRef, cleanedData);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `doctors/${doctorId}`);
     throw error;
